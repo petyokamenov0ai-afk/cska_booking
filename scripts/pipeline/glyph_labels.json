@@ -1,0 +1,38 @@
+{
+  "_comment": [
+    "Digit identity for the shape clusters produced by 02_glyphs.py.",
+    "The seat numbers in SEATS_CSKA.pdf are vector outlines, not text, so this",
+    "mapping is the one irreducibly human step in the pipeline: the templates were",
+    "read off scripts/pipeline/build/glyph_templates_big.png.",
+    "",
+    "Three independent checks make a misread very hard to miss:",
+    "  1. counter count must match the digit -- 8 has two, 0/4/6/9 have one, and",
+    "     1/2/3/5/7 have none (field 'h' on the contact sheet);",
+    "  2. the frequency ranking must look like numbers 1..40 (1 and 2 dominant,",
+    "     7/8/9/0 rare), which it does;",
+    "  3. 03_decode.py asserts that the row number is constant along each row and",
+    "     that seat numbers increase monotonically along it -- a mislabelled digit",
+    "     breaks this loudly instead of shipping wrong tickets.",
+    "",
+    "Template ids are only stable for a given clustering run, so 03_decode.py",
+    "freezes this into build/digit_atlas.npz."
+  ],
+  "labels": {
+    "2": 1,
+    "0": 2,
+    "1": 3,
+    "9": 4,
+    "7": 5,
+    "4": 6,
+    "3": 0,
+    "5": 8,
+    "6": 9,
+    "8": 7,
+    "11": 2,
+    "10": 4
+  },
+  "notes": {
+    "11": "second '2' variant (different text size)",
+    "10": "'4' whose counter is absent at that text size, so it renders solid"
+  }
+}

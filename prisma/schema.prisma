@@ -1,0 +1,155 @@
+// CSKA Bulgarian Army Stadium — seat booking
+//
+// Data model per IMPLEMENTATION_PLAN.md §4, with the back-relations Prisma
+// requires and the geometry fields from docs/DATA_CONTRACT.md.
+//
+// Two kinds of data live here and are deliberately separated:
+//   * geometry  (Sector / Subsector / Seat)  — static, seeded from data/stadium.json
+//   * booking   (Event / Reservation / ReservationSeat) — dynamic
+//
+// Seats carry no price: booking is free, so there is no money anywhere in this
+// schema and every subsector of an ON_SALE event is sellable.
+//
+// The double-booking guard is a PARTIAL unique index that Prisma cannot express;
+// it is created by hand at the end of prisma/migrations/.../migration.sql:
+//   CREATE UNIQUE INDEX reservation_seat_active_uq
+//     ON "ReservationSeat" ("eventId", "seatId") WHERE "active";
+// Keep it in every future migration that rebuilds ReservationSeat.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// A stand: А (South), Б (East), В (North), Г (West). Codes are CYRILLIC.
+model Sector {
+  id         String      @id @default(cuid())
+  code       String      @unique /// "А" (U+0410) — never Latin "A"
+  latin      String /// "A" — display / ASCII fallback only
+  name       String /// English, e.g. "South"
+  nameBg     String /// Bulgarian, e.g. "Юг"
+  order      Int /// 1..4, А Б В Г
+  subsectors Subsector[]
+}
+
+/// A numbered block inside a stand: А1…А5, Б6…Б11, В12…В16, Г17…Г22 (22 total).
+model Subsector {
+  id        String @id @default(cuid())
+  sectorId  String
+  code      String @unique /// "А1" — Cyrillic, unique across the stadium
+  latin     String /// "A1"
+  viewBox   String /// subsector-local seat-map coordinates, e.g. "0 0 476 504"
+  width     Float /// viewBox width
+  height    Float /// viewBox height
+  svgPath   String /// outline in OVERVIEW coordinates, closed path
+  centroidX Float /// overview space, for the label anchor
+  centroidY Float
+  seatCount Int /// denormalised count of active geometry seats
+  rowCount  Int
+  order     Int /// 1..22, drawing order
+
+  sector Sector @relation(fields: [sectorId], references: [id], onDelete: Cascade)
+  seats  Seat[]
+
+  @@index([sectorId])
+}
+
+model Seat {
+  id          String   @id @default(cuid())
+  subsectorId String
+  row         Int /// as printed on the drawing, 1 = closest to the pitch
+  number      Int /// as printed on the drawing, restarts each row
+  x           Float /// subsector-local seat centre
+  y           Float
+  angle       Float    @default(0) /// degrees; non-zero only in curved corners
+  type        SeatType @default(STANDARD)
+  white       Boolean  @default(false) /// light "ЦСКА"-letter seat (В stand); cosmetic
+  active      Boolean  @default(true) /// false = killed/blocked seat
+
+  subsector        Subsector         @relation(fields: [subsectorId], references: [id], onDelete: Cascade)
+  reservationSeats ReservationSeat[]
+
+  // Doubles as the index for `WHERE subsectorId = ? ORDER BY row, number`,
+  // which is the only way seats are ever read — no separate @@index needed.
+  @@unique([subsectorId, row, number])
+}
+
+model Event {
+  id         String      @id @default(cuid())
+  title      String /// "ЦСКА – Левски"
+  kickoffAt  DateTime
+  salesOpen  DateTime
+  salesClose DateTime
+  status     EventStatus @default(DRAFT)
+  createdAt  DateTime    @default(now())
+
+  reservations     Reservation[]
+  reservationSeats ReservationSeat[]
+
+  @@index([status])
+}
+
+model Reservation {
+  id         String            @id @default(cuid())
+  code       String            @unique /// public handle, e.g. "K7KQ2M"
+  eventId    String
+  status     ReservationStatus @default(PENDING)
+  name       String?
+  /// Free text captured beside the holder's name in the click-to-book dialog.
+  /// Nullable and unindexed: it is a caption, never a lookup key, and "no note"
+  /// must stay representable for every booking made before it existed.
+  note       String?
+  email      String?
+  phone      String?
+  expiresAt  DateTime? /// set while PENDING (hold TTL), cleared on CONFIRMED
+  createdAt  DateTime          @default(now())
+  sessionId  String /// anonymous httpOnly cookie id — marks "my" holds
+
+  event Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  seats ReservationSeat[]
+
+  @@index([status, expiresAt]) /// sweeper: PENDING AND expiresAt < now()
+  @@index([sessionId])
+  @@index([eventId])
+}
+
+model ReservationSeat {
+  id            String  @id @default(cuid())
+  reservationId String
+  eventId       String /// denormalised so the partial unique index can exist
+  seatId        String
+  active        Boolean @default(true) /// true exactly while the reservation blocks the seat
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  event       Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  seat        Seat        @relation(fields: [seatId], references: [id], onDelete: Restrict)
+
+  // Also serves `WHERE reservationId = ?` as an index prefix.
+  @@unique([reservationId, seatId])
+  @@index([eventId, seatId]) /// availability lookups incl. already-expired rows
+  @@index([seatId])
+}
+
+enum SeatType {
+  STANDARD
+  WHEELCHAIR
+  COMPANION
+  VIP
+}
+
+enum EventStatus {
+  DRAFT
+  ON_SALE
+  CLOSED
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+}

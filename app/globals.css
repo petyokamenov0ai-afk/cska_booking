@@ -1,0 +1,311 @@
+@import 'tailwindcss';
+
+/* Explicit source roots: this project is not a git repo, so Tailwind's
+   automatic project-root detection cannot be relied on to reach `components/`
+   and `lib/`. Keep this list in sync with tailwind.config.ts `content`. */
+@source '../app';
+@source '../components';
+@source '../lib';
+
+/* ---------------------------------------------------------------------------
+   Dark mode
+   `dark:` follows the OS setting, and can be forced either way by putting
+   `class="dark"` or `class="light"` on <html> (for a future theme toggle).
+   --------------------------------------------------------------------------- */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(html:not(.light), html:not(.light) *) {
+      @slot;
+    }
+  }
+  &:where(html.dark, html.dark *) {
+    @slot;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Brand palette — CSKA red. 600 is the club red (#a4232b).
+   Static scale: available as bg-cska-600, text-cska-50, fill-cska-600, …
+   --------------------------------------------------------------------------- */
+@theme {
+  --color-cska-50: #fdf3f3;
+  --color-cska-100: #fbe4e5;
+  --color-cska-200: #f7cdcf;
+  --color-cska-300: #f0a9ac;
+  --color-cska-400: #e67a80;
+  --color-cska-500: #d64c55;
+  --color-cska-600: #a4232b;
+  --color-cska-700: #8b1d24;
+  --color-cska-800: #741b21;
+  --color-cska-900: #611a1f;
+  --color-cska-950: #350b0d;
+}
+
+/* ---------------------------------------------------------------------------
+   Semantic tokens — light
+   --------------------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+
+  /* The page surface is pure white. Because `background` and `surface` are then
+     the same colour, cards and the header are separated by `--border` alone, so
+     it carries real weight — do not lighten it further. The neutral greys are
+     deliberate: the palette used to be warm (beige-tinted) to sit on the old
+     off-white page, and those same tints read as dirty against true white. */
+  --background: #ffffff;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --foreground: #15151a;
+  --muted: #f4f4f6;
+  --muted-foreground: #6a6a73;
+  --border: #e4e4e9;
+  --input: #ffffff;
+  --ring: #a4232b;
+
+  --primary: #a4232b;
+  --primary-hover: #8b1d24;
+  --primary-foreground: #ffffff;
+
+  --accent: #15151a;
+  --accent-foreground: #ffffff;
+
+  --destructive: #c0272d;
+  --destructive-foreground: #ffffff;
+  --success: #1a7f4b;
+  --warning: #b26a00;
+
+  /* Seat states (see docs/API_CONTRACT.md SeatStatus + local SELECTED/mine) */
+  /* Free is green and taken is red — the convention every ticket site uses, so
+     a first-time visitor needs no legend to read the map. "Yours" therefore
+     cannot also be green: it takes the third hue, blue, which reads as a
+     deliberate selection rather than as availability. */
+  --seat-free: #2f9e63;
+  --seat-free-hover: #1a7f4b;
+  --seat-selected: #1f6feb;
+  --seat-mine: #3b82f6;
+  --seat-held: #b6b6bd;
+  --seat-reserved: #c0392b;
+  --seat-blocked: #e8e8ec;
+  --seat-stroke: rgb(0 0 0 / 0.18);
+  --seat-label: #6a6a73;
+
+  /* Stadium decoration */
+  --pitch: #2f7d4f;
+  --pitch-line: rgb(255 255 255 / 0.55);
+  --stand: #f4f4f6;
+  --bowl: #ececf0;
+
+  /* One solid colour per stand, as on the printed ticket map. */
+  --stand-a: #c8a02c;
+  --stand-b: #e8402f;
+  --stand-v: #c62e23;
+  --stand-g: #8c1d18;
+  /* Sold out — reads as "not for sale" the way a blacked-out block does. */
+  --stand-sold: #1b1b1f;
+}
+
+/* ---------------------------------------------------------------------------
+   Semantic tokens — dark (OS preference, unless .light forces light)
+   --------------------------------------------------------------------------- */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    color-scheme: dark;
+
+    --background: #121011;
+    --surface: #1b1819;
+    --surface-raised: #231f20;
+    --foreground: #f4f1f0;
+    --muted: #262223;
+    --muted-foreground: #a39c99;
+    --border: #332e2f;
+    --input: #1b1819;
+    --ring: #e67a80;
+
+    --primary: #d64c55;
+    --primary-hover: #e67a80;
+    --primary-foreground: #16110f;
+
+    --accent: #f4f1f0;
+    --accent-foreground: #16110f;
+
+    --destructive: #e2565d;
+    --destructive-foreground: #16110f;
+    --success: #35b473;
+    --warning: #e0a33a;
+
+    --seat-free: #35b473;
+    --seat-free-hover: #4cc98a;
+    --seat-selected: #4b8ef7;
+    /* Light enough that Seat.tsx's `dark:text-black/75` glyph stays legible. */
+    --seat-mine: #7fb2ff;
+    --seat-held: #4d4749;
+    --seat-reserved: #b8323b;
+    --seat-blocked: #241f20;
+    --seat-stroke: rgb(255 255 255 / 0.14);
+    --seat-label: #a39c99;
+
+    --pitch: #1f5d3a;
+    --pitch-line: rgb(255 255 255 / 0.35);
+    --stand: #1b1819;
+    --bowl: #242021;
+
+    --stand-a: #b8922a;
+    --stand-b: #d13a2b;
+    --stand-v: #b02a20;
+    --stand-g: #7a1915;
+    --stand-sold: #322c2e;
+  }
+}
+
+/* Explicit override for a theme toggle: <html class="dark"> */
+html.dark {
+  color-scheme: dark;
+
+  --background: #121011;
+  --surface: #1b1819;
+  --surface-raised: #231f20;
+  --foreground: #f4f1f0;
+  --muted: #262223;
+  --muted-foreground: #a39c99;
+  --border: #332e2f;
+  --input: #1b1819;
+  --ring: #e67a80;
+
+  --primary: #d64c55;
+  --primary-hover: #e67a80;
+  --primary-foreground: #16110f;
+
+  --accent: #f4f1f0;
+  --accent-foreground: #16110f;
+
+  --destructive: #e2565d;
+  --destructive-foreground: #16110f;
+  --success: #35b473;
+  --warning: #e0a33a;
+
+  --seat-free: #35b473;
+  --seat-free-hover: #4cc98a;
+  --seat-selected: #4b8ef7;
+  /* Light enough that Seat.tsx's `dark:text-black/75` glyph stays legible. */
+  --seat-mine: #7fb2ff;
+  --seat-held: #4d4749;
+  --seat-reserved: #b8323b;
+  --seat-blocked: #241f20;
+  --seat-stroke: rgb(255 255 255 / 0.14);
+  --seat-label: #a39c99;
+
+  --pitch: #1f5d3a;
+  --pitch-line: rgb(255 255 255 / 0.35);
+  --stand: #1b1819;
+  --bowl: #242021;
+
+  --stand-a: #b8922a;
+  --stand-b: #d13a2b;
+  --stand-v: #b02a20;
+  --stand-g: #7a1915;
+  --stand-sold: #322c2e;
+}
+
+/* ---------------------------------------------------------------------------
+   Expose the tokens as Tailwind utilities: bg-background, text-foreground,
+   border-border, fill-seat-free, fill-stand-a, …
+   `inline` keeps them referencing the live custom properties, so they flip
+   with the theme instead of being frozen at build time.
+   --------------------------------------------------------------------------- */
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+
+  --color-seat-free: var(--seat-free);
+  --color-seat-free-hover: var(--seat-free-hover);
+  --color-seat-selected: var(--seat-selected);
+  --color-seat-mine: var(--seat-mine);
+  --color-seat-held: var(--seat-held);
+  --color-seat-reserved: var(--seat-reserved);
+  --color-seat-blocked: var(--seat-blocked);
+  --color-seat-stroke: var(--seat-stroke);
+  --color-seat-label: var(--seat-label);
+
+
+  --color-pitch: var(--pitch);
+  --color-pitch-line: var(--pitch-line);
+  --color-stand: var(--stand);
+  --color-bowl: var(--bowl);
+  --color-stand-a: var(--stand-a);
+  --color-stand-b: var(--stand-b);
+  --color-stand-v: var(--stand-v);
+  --color-stand-g: var(--stand-g);
+  --color-stand-sold: var(--stand-sold);
+}
+
+/* ---------------------------------------------------------------------------
+   Base
+   --------------------------------------------------------------------------- */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* The seat map is interactive: never let the browser pan-zoom fight it. */
+  svg {
+    touch-action: manipulation;
+  }
+}
+
+@layer utilities {
+  /* Numbers in tables/countdowns should not jitter. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .motion-safe-only {
+      transition: none !important;
+      animation: none !important;
+    }
+  }
+}

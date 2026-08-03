@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1073 775" font-family="Arial, Helvetica, sans-serif">
+<style>
+.sector{fill:#A6192E;stroke:#ffffff;stroke-width:2.5;stroke-linejoin:round;transition:fill .15s}
+.sector:hover{fill:#C8102E}
+.lbl{fill:#ffffff;text-anchor:middle;pointer-events:none}
+.lbl-cyr{font-size:26px;font-weight:700}
+.lbl-lat{font-size:13px;font-weight:400;opacity:.75}
+.mark{fill:none;stroke:#ffffff;stroke-width:2;opacity:.7}
+</style>
+<title>Стадион „Българска армия“ — сектори / CSKA Sofia stadium — sectors</title>
+<g id="pitch">
+<rect x="185.3" y="198.3" width="691.4" height="446.7" fill="#4E9A51"/>
+<rect x="185.3" y="198.3" width="69.1" height="446.7" fill="#549F57"/>
+<rect x="323.6" y="198.3" width="69.1" height="446.7" fill="#549F57"/>
+<rect x="461.9" y="198.3" width="69.1" height="446.7" fill="#549F57"/>
+<rect x="600.1" y="198.3" width="69.1" height="446.7" fill="#549F57"/>
+<rect x="738.4" y="198.3" width="69.1" height="446.7" fill="#549F57"/>
+<rect class="mark" x="185.3" y="198.3" width="691.4" height="446.7"/>
+<line class="mark" x1="531.0" y1="198.3" x2="531.0" y2="645.0"/>
+<circle class="mark" cx="531.0" cy="421.6" r="60.2"/>
+<circle cx="531.0" cy="421.6" r="2.2" fill="#ffffff" opacity=".7"/>
+<rect class="mark" x="185.3" y="288.9" width="108.6" height="265.5"/>
+<rect class="mark" x="185.3" y="361.3" width="36.2" height="120.6"/>
+<circle cx="257.7" cy="421.6" r="2.2" fill="#ffffff" opacity=".7"/>
+<rect class="mark" x="768.1" y="288.9" width="108.6" height="265.5"/>
+<rect class="mark" x="840.5" y="361.3" width="36.2" height="120.6"/>
+<circle cx="804.3" cy="421.6" r="2.2" fill="#ffffff" opacity=".7"/>
+</g>
+<g id="sectors">
+<g id="sector-A1">
+<polygon class="sector" points="196.3,679.0 350.7,679.0 350.7,760.0 196.3,760.0"><title>А1 / A1</title></polygon>
+<text class="lbl lbl-cyr" x="273.5" y="721.5">А1</text>
+<text class="lbl lbl-lat" x="273.5" y="739.5">A1</text>
+</g>
+<g id="sector-A2">
+<polygon class="sector" points="350.7,679.0 485.0,679.0 485.0,760.0 350.7,760.0"><title>А2 / A2</title></polygon>
+<text class="lbl lbl-cyr" x="417.8" y="721.5">А2</text>
+<text class="lbl lbl-lat" x="417.8" y="739.5">A2</text>
+</g>
+<g id="sector-A3">
+<polygon class="sector" points="485.0,679.0 620.0,679.0 620.0,760.0 485.0,760.0"><title>А3 / A3</title></polygon>
+<text class="lbl lbl-cyr" x="552.5" y="721.5">А3</text>
+<text class="lbl lbl-lat" x="552.5" y="739.5">A3</text>
+</g>
+<g id="sector-A4">
+<polygon class="sector" points="620.0,679.0 724.7,679.0 724.7,760.0 620.0,760.0"><title>А4 / A4</title></polygon>
+<text class="lbl lbl-cyr" x="672.3" y="721.5">А4</text>
+<text class="lbl lbl-lat" x="672.3" y="739.5">A4</text>
+</g>
+<g id="sector-A5">
+<polygon class="sector" points="724.7,679.0 878.5,679.0 878.5,760.0 724.7,760.0"><title>А5 / A5</title></polygon>
+<text class="lbl lbl-cyr" x="801.6" y="721.5">А5</text>
+<text class="lbl lbl-lat" x="801.6" y="739.5">A5</text>
+</g>
+<g id="sector-B6">
+<polygon class="sector" points="913.3,647.0 1058.3,647.0 1044.6,690.2 1005.7,726.9 947.3,751.4 878.5,760.0 878.5,679.0"><title>Б6 / B6</title></polygon>
+<text class="lbl lbl-cyr" x="956.2" y="697.7">Б6</text>
+<text class="lbl lbl-lat" x="956.2" y="715.7">B6</text>
+</g>
+<g id="sector-B7">
+<polygon class="sector" points="913.3,560.3 1058.3,560.3 1058.3,647.0 913.3,647.0"><title>Б7 / B7</title></polygon>
+<text class="lbl lbl-cyr" x="985.8" y="605.7">Б7</text>
+<text class="lbl lbl-lat" x="985.8" y="623.7">B7</text>
+</g>
+<g id="sector-B8">
+<polygon class="sector" points="913.3,418.7 1058.3,418.7 1058.3,560.3 913.3,560.3"><title>Б8 / B8</title></polygon>
+<text class="lbl lbl-cyr" x="985.8" y="491.5">Б8</text>
+<text class="lbl lbl-lat" x="985.8" y="509.5">B8</text>
+</g>
+<g id="sector-B9">
+<polygon class="sector" points="913.3,279.0 1058.3,279.0 1058.3,418.7 913.3,418.7"><title>Б9 / B9</title></polygon>
+<text class="lbl lbl-cyr" x="985.8" y="350.8">Б9</text>
+<text class="lbl lbl-lat" x="985.8" y="368.8">B9</text>
+</g>
+<g id="sector-B10">
+<polygon class="sector" points="913.3,192.0 1058.3,192.0 1058.3,279.0 913.3,279.0"><title>Б10 / B10</title></polygon>
+<text class="lbl lbl-cyr" x="985.8" y="237.5">Б10</text>
+<text class="lbl lbl-lat" x="985.8" y="255.5">B10</text>
+</g>
+<g id="sector-B11">
+<polygon class="sector" points="870.1,160.3 885.2,16.0 951.5,29.4 1007.6,67.5 1045.2,124.6 1058.3,192.0 913.3,192.0"><title>Б11 / B11</title></polygon>
+<text class="lbl lbl-cyr" x="954.7" y="119.4">Б11</text>
+<text class="lbl lbl-lat" x="954.7" y="137.4">B11</text>
+</g>
+<g id="sector-V12">
+<polygon class="sector" points="745.3,16.0 885.2,16.0 870.1,160.3 745.3,160.3"><title>В12 / V12</title></polygon>
+<text class="lbl lbl-cyr" x="811.6" y="88.8">В12</text>
+<text class="lbl lbl-lat" x="811.6" y="106.8">V12</text>
+</g>
+<g id="sector-V13">
+<polygon class="sector" points="605.0,16.0 745.3,16.0 745.3,160.3 605.0,160.3"><title>В13 / V13</title></polygon>
+<text class="lbl lbl-cyr" x="675.2" y="90.2">В13</text>
+<text class="lbl lbl-lat" x="675.2" y="108.2">V13</text>
+</g>
+<g id="sector-V14">
+<polygon class="sector" points="464.7,16.0 605.0,16.0 605.0,160.3 464.7,160.3"><title>В14 / V14</title></polygon>
+<text class="lbl lbl-cyr" x="534.8" y="90.2">В14</text>
+<text class="lbl lbl-lat" x="534.8" y="108.2">V14</text>
+</g>
+<g id="sector-V15">
+<polygon class="sector" points="324.3,16.0 464.7,16.0 464.7,160.3 324.3,160.3"><title>В15 / V15</title></polygon>
+<text class="lbl lbl-cyr" x="394.5" y="90.2">В15</text>
+<text class="lbl lbl-lat" x="394.5" y="108.2">V15</text>
+</g>
+<g id="sector-V16">
+<polygon class="sector" points="187.3,16.0 324.3,16.0 324.3,160.3 202.5,160.3"><title>В16 / V16</title></polygon>
+<text class="lbl lbl-cyr" x="259.5" y="88.8">В16</text>
+<text class="lbl lbl-lat" x="259.5" y="106.8">V16</text>
+</g>
+<g id="sector-G17">
+<polygon class="sector" points="202.5,160.3 187.3,16.0 121.4,29.4 65.5,67.7 28.1,125.1 15.0,192.7 160.0,192.7"><title>Г17 / G17</title></polygon>
+<text class="lbl lbl-cyr" x="118.2" y="119.7">Г17</text>
+<text class="lbl lbl-lat" x="118.2" y="137.7">G17</text>
+</g>
+<g id="sector-G18">
+<polygon class="sector" points="15.0,192.7 160.0,192.7 160.0,298.3 15.0,298.3"><title>Г18 / G18</title></polygon>
+<text class="lbl lbl-cyr" x="87.5" y="247.5">Г18</text>
+<text class="lbl lbl-lat" x="87.5" y="265.5">G18</text>
+</g>
+<g id="sector-G19">
+<polygon class="sector" points="15.0,298.3 160.0,298.3 160.0,421.0 15.0,421.0"><title>Г19 / G19</title></polygon>
+<text class="lbl lbl-cyr" x="87.5" y="361.7">Г19</text>
+<text class="lbl lbl-lat" x="87.5" y="379.7">G19</text>
+</g>
+<g id="sector-G20">
+<polygon class="sector" points="15.0,421.0 160.0,421.0 160.0,543.7 15.0,543.7"><title>Г20 / G20</title></polygon>
+<text class="lbl lbl-cyr" x="87.5" y="484.3">Г20</text>
+<text class="lbl lbl-lat" x="87.5" y="502.3">G20</text>
+</g>
+<g id="sector-G21">
+<polygon class="sector" points="15.0,543.7 160.0,543.7 160.0,647.7 15.0,647.7"><title>Г21 / G21</title></polygon>
+<text class="lbl lbl-cyr" x="87.5" y="597.7">Г21</text>
+<text class="lbl lbl-lat" x="87.5" y="615.7">G21</text>
+</g>
+<g id="sector-G22">
+<polygon class="sector" points="160.0,647.7 15.0,647.7 28.8,690.7 68.1,727.1 126.9,751.4 196.3,760.0 196.3,679.0"><title>Г22 / G22</title></polygon>
+<text class="lbl lbl-cyr" x="117.9" y="698.1">Г22</text>
+<text class="lbl lbl-lat" x="117.9" y="716.1">G22</text>
+</g>
+</g>
+</svg>
