@@ -3,7 +3,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import Legend from '@/components/stadium/Legend';
 import SeatMap from '@/components/stadium/SeatMap';
 import { seatUnavailableMessage } from '@/components/stadium/seatHolder';
 import { pushToast } from '@/components/ui/Toast';
@@ -11,12 +10,14 @@ import { t, type Locale } from '@/lib/i18n';
 import { ApiRequestError, apiFetch, seatsQueryKey, useSeats } from '@/lib/useSeats';
 import type { SeatDTO, SubsectorMeta } from '@/lib/types';
 import SeatNameDialog from './SeatNameDialog';
+import SeatReleaseDialog from './SeatReleaseDialog';
 
 /**
  * Click-to-book. There is no basket, no hold countdown and no contact form:
  *
  *   * clicking a free seat asks who it is for, then books it under that name;
- *   * clicking a seat you can see as booked frees it again, with no prompt.
+ *   * clicking your own booking shows who it is for, with an explicit button
+ *     to release it — viewing and cancelling are no longer the same tap.
  *
  * The seat list is polled, so two people looking at the same subsector converge
  * within a poll. Optimism is deliberately limited: a click marks *that one seat*
@@ -65,13 +66,20 @@ export default function SeatMapClient({
    * structurally incapable of leaving residue.
    */
   const [promptSeatId, setPromptSeatId] = useState<string | null>(null);
+  /** The MINE seat whose release dialog is open — same id-not-object rule, and
+   *  the same "dismissal writes only this" rule, as `promptSeatId` above. */
+  const [releaseSeatId, setReleaseSeatId] = useState<string | null>(null);
   /** The seat the currently-open dialog has already been confirmed for. A ref
    *  and not state on purpose — see `onConfirmName`, which is the only writer. */
   const confirmedSeatId = useRef<string | null>(null);
+  /** Its twin for the release dialog — see `onConfirmRelease`. */
+  const confirmedReleaseId = useRef<string | null>(null);
   /** Last name submitted, so naming a family's six seats is Enter, Enter, Enter.
    *  In memory only — localStorage would be scope creep and a hydration hazard. */
   const [lastName, setLastName] = useState('');
   const promptSeat = promptSeatId === null ? undefined : seats.find((s) => s.id === promptSeatId);
+  const releaseSeat =
+    releaseSeatId === null ? undefined : seats.find((s) => s.id === releaseSeatId);
 
   const markPending = useCallback((seatId: string, on: boolean) => {
     setPending((current) => {
@@ -159,8 +167,11 @@ export default function SeatMapClient({
       // order-swapped version of this falls straight through into the dialog and
       // asks you to name a seat you are trying to release.
       if (seat.mine) {
-        markPending(seat.id, true);
-        toggle.mutate({ seat, action: 'release' });
+        // Nothing is released yet: the tap opens the view/confirm dialog, and
+        // only its destructive button mutates. On a phone this tap used to BE
+        // the release, which made "who is sitting here?" a destructive gesture.
+        confirmedReleaseId.current = null;
+        setReleaseSeatId(seat.id);
         return;
       }
       if (seat.status !== 'FREE') return; // someone else's — SeatMap already toasted
@@ -168,7 +179,7 @@ export default function SeatMapClient({
       confirmedSeatId.current = null;
       setPromptSeatId(seat.id); // nothing is booked yet
     },
-    [markPending, toggle],
+    [],
   );
 
   const onConfirmName = useCallback(
@@ -211,6 +222,21 @@ export default function SeatMapClient({
     [promptSeat, markPending, toggle],
   );
 
+  /** Same double-submit shape as `onConfirmName`, same latch, same reasons.
+   *  The stake is lower — DELETE is idempotent and mints no cookie — but two
+   *  releases in one task would still double-toast "Освободено". */
+  const onConfirmRelease = useCallback(() => {
+    const seat = releaseSeat;
+    if (seat === undefined || pendingRef.current.has(seat.id)) return;
+    if (confirmedReleaseId.current === seat.id) return;
+    confirmedReleaseId.current = seat.id;
+    // Close in the same commit as `markPending`, exactly like the naming path:
+    // the DELETE cannot be recalled, so no dialog may outlive its decision.
+    setReleaseSeatId(null);
+    markPending(seat.id, true);
+    toggle.mutate({ seat, action: 'release' });
+  }, [releaseSeat, markPending, toggle]);
+
   /**
    * The map polls every 7 s and a seat can go from under an open dialog.
    * Closing beats letting someone finish typing into a seat they have already
@@ -227,6 +253,23 @@ export default function SeatMapClient({
     if (live === undefined) return; // subsector changed under us: nothing to say
     pushToast({ variant: 'info', message: seatUnavailableMessage(locale, live) });
   }, [promptSeatId, seats, locale]);
+
+  /**
+   * The release dialog gets the same treatment: if the seat stops being ours
+   * while it is open (the reservation expired, or another tab released it),
+   * the dialog closes rather than offering to release a seat we no longer
+   * hold. Freed silently — "it is not yours any more" needs no toast when the
+   * outcome is exactly what the open dialog was offering; but if someone ELSE
+   * now holds it, that is worth a sentence.
+   */
+  useEffect(() => {
+    if (releaseSeatId === null) return;
+    const live = seats.find((s) => s.id === releaseSeatId);
+    if (live !== undefined && live.mine) return;
+    setReleaseSeatId(null);
+    if (live === undefined || live.status === 'FREE') return;
+    pushToast({ variant: 'info', message: seatUnavailableMessage(locale, live) });
+  }, [releaseSeatId, seats, locale]);
 
   /**
    * Tapping an occupied seat is the primary *touch* route to the holder's name:
@@ -251,13 +294,16 @@ export default function SeatMapClient({
   //
   // The dialog is a sibling of the map, never a child: React events bubble along
   // the *React* tree, so a dialog rendered inside `SeatMap` would send its
-  // keystrokes into the map's keydown handler, where Enter, Space, the arrows and
-  // `+ - 0` are all bound and preventDefault'ed.
+  // keystrokes into the map's keydown handler, where Enter, Space and the arrows
+  // are all bound and preventDefault'ed.
+  //
+  // `min-h-0 flex-1` down the column: the page hands this section the rest of
+  // the viewport and the map takes all of it, so the whole subsector — pitch
+  // strip included — is on screen with no scrolling and at maximum size.
   return (
-    <section className="flex flex-col gap-3">
-      <p className="text-sm text-muted-foreground">{t(locale, 'book.hint')}</p>
-
+    <section className="flex min-h-0 flex-1 flex-col gap-3">
       <SeatMap
+        className="min-h-0 flex-1"
         subsector={subsector}
         seats={seats}
         selectedSeatIds={selection}
@@ -279,7 +325,15 @@ export default function SeatMapClient({
         locale={locale}
       />
 
-      <Legend variant="seats" locale={locale} />
+      {/* Only one of the two dialogs can be open: `promptSeatId` is set for
+          FREE seats, `releaseSeatId` for MINE ones, and each open disarms only
+          its own latch. */}
+      <SeatReleaseDialog
+        seat={releaseSeat ?? null}
+        onConfirm={onConfirmRelease}
+        onCancel={() => setReleaseSeatId(null)}
+        locale={locale}
+      />
     </section>
   );
 }

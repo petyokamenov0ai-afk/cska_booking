@@ -184,6 +184,26 @@ export function getSectorCodeForSubsector(subsectorCode: string): string | null 
   return ensureCache().sectorCodeBySubsectorCode.get(subsectorCode) ?? null;
 }
 
+/**
+ * Every subsector drawn as the same overview shape as `code`, in file order —
+ * `["Б6", "Б6-2"]` for either Б6 corner code, `[code]` for the 20 ungrouped
+ * blocks, `null` for an unknown code. The overview map routes a grouped wedge
+ * to its block code, and the subsector page uses this to render the whole
+ * corner rather than the one member the URL happens to name.
+ */
+export function getSubsectorGroupCodes(code: string): string[] | null {
+  const store = ensureCache();
+  const subsector = store.subsectorsByCode.get(code);
+  if (subsector === undefined) return null;
+  const group = subsector.overviewGroup;
+  if (!group) return [code];
+  const sector = store.sectorsByCode.get(store.sectorCodeBySubsectorCode.get(code)!);
+  if (sector === undefined) return [code];
+  return sector.subsectors
+    .filter((member) => (member.overviewGroup ?? member.code) === group)
+    .map((member) => member.code);
+}
+
 /** Overview-space canvas + pitch path, for the level-1 map. */
 export function getStadiumOverview(): StadiumOverviewGeometry {
   return ensureCache().file.overview;

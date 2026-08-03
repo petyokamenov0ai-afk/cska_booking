@@ -95,7 +95,6 @@ const bg: Dictionary = {
     // code is one of them, so the members have to be spelled out or a screen
     // reader hears a block that is not where activating it goes.
     group: '{code} · {count} блока: {members}',
-    groupHint: 'Избери блок от списъка отдолу.',
     partOf: 'част от {code}',
     seatsFree: '{free} от {total} свободни',
     soldOut: 'Изчерпан',
@@ -104,10 +103,6 @@ const bg: Dictionary = {
     overviewTitle: 'Избери сектор',
     overviewHint: 'Докосни сектор, за да го увеличиш.',
     sectorHint: 'Избери подсектор.',
-    seatMapHint: 'Приближи, за да избираш места.',
-    zoomIn: 'Приближи',
-    zoomOut: 'Отдалечи',
-    zoomReset: 'Нулирай изгледа',
     pitch: 'Терен',
     rowLabel: 'Ред {row}',
     seatTooltip: 'Ред {row} · Място {number}',
@@ -152,7 +147,6 @@ const bg: Dictionary = {
     ariaNote: 'бележка: {note}',
   },
   book: {
-    hint: 'Докосни свободно място, въведи име и го резервирай. Докосни своя резервация, за да я откажеш.',
     booked: 'Резервирано: ред {row}, място {seat}.',
     released: 'Освободено: ред {row}, място {seat}.',
     lost: 'Ред {row}, място {seat} току-що беше заето от друг.',
@@ -165,6 +159,9 @@ const bg: Dictionary = {
     nameSubmit: 'Резервирай',
     nameTooShort: 'Въведи име — поне 2 знака.',
     bookedFor: 'Резервирано за {name}: ред {row}, място {seat}.',
+    /** The release confirm dialog: viewing is the default, releasing is opt-in. */
+    releaseTitle: 'Твоя резервация',
+    releaseConfirm: 'Освободи мястото',
   },
   basket: {
     title: 'Избрани места',
@@ -313,7 +310,6 @@ const en: Dictionary = {
   subsector: {
     label: 'Subsector {code}',
     group: '{code} · {count} blocks: {members}',
-    groupHint: 'Choose a block from the list below.',
     partOf: 'part of {code}',
     seatsFree: '{free} of {total} free',
     soldOut: 'Sold out',
@@ -322,10 +318,6 @@ const en: Dictionary = {
     overviewTitle: 'Pick a sector',
     overviewHint: 'Tap a sector to zoom in.',
     sectorHint: 'Pick a subsector.',
-    seatMapHint: 'Zoom in to select seats.',
-    zoomIn: 'Zoom in',
-    zoomOut: 'Zoom out',
-    zoomReset: 'Reset view',
     pitch: 'Pitch',
     rowLabel: 'Row {row}',
     seatTooltip: 'Row {row} · Seat {number}',
@@ -363,7 +355,6 @@ const en: Dictionary = {
     ariaNote: 'note: {note}',
   },
   book: {
-    hint: 'Tap a free seat, enter a name, and book it. Tap your own booking to release it.',
     booked: 'Booked: row {row}, seat {seat}.',
     released: 'Released: row {row}, seat {seat}.',
     lost: 'Row {row}, seat {seat} was just taken by someone else.',
@@ -374,6 +365,8 @@ const en: Dictionary = {
     nameSubmit: 'Book seat',
     nameTooShort: 'Enter a name — at least 2 characters.',
     bookedFor: 'Booked for {name}: row {row}, seat {seat}.',
+    releaseTitle: 'Your booking',
+    releaseConfirm: 'Release the seat',
   },
   basket: {
     title: 'Selected seats',

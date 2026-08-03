@@ -42,7 +42,11 @@ export default function RootLayout({
     <html lang={DEFAULT_LOCALE} className={`${inter.variable} light`}>
       <body className="min-h-dvh bg-background font-sans text-foreground antialiased">
         <Providers>
-          <div className="flex min-h-dvh flex-col">
+          {/* `h-dvh`, not `min-h-dvh`: the shell is pinned to the viewport so a
+              page can claim the remaining height with `flex-1 min-h-0` and fit
+              entirely on screen (the seat map relies on this). Pages taller
+              than the viewport scroll inside <main> instead of the window. */}
+          <div className="flex h-dvh flex-col">
             <header className="sticky top-0 z-40 border-b border-border bg-surface/85 backdrop-blur supports-[backdrop-filter]:bg-surface/70">
               <div className="mx-auto flex w-full max-w-[1800px] items-center gap-3 px-4 py-3 sm:px-6">
                 <Link href="/" className="flex items-baseline gap-2 no-underline">
@@ -59,11 +63,10 @@ export default function RootLayout({
               </div>
             </header>
 
-            <main className="mx-auto w-full max-w-[1800px] flex-1 px-4 py-6 sm:px-6">{children}</main>
-
-            <footer className="border-t border-border px-4 py-6 text-center text-xs text-muted-foreground">
-              {t(DEFAULT_LOCALE, 'brand.stadium')}
-            </footer>
+            {/* No footer: every pixel below the header belongs to the maps. */}
+            <main className="mx-auto flex min-h-0 w-full max-w-[1800px] flex-1 flex-col overflow-y-auto px-4 py-3 sm:px-6">
+              {children}
+            </main>
           </div>
         </Providers>
       </body>

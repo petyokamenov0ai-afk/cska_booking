@@ -12,23 +12,19 @@
  *   2. Seats receive **primitives only** and are `memo`ised, so when one seat's
  *      status flips only that seat re-renders.
  *
- * Pan / zoom is hand-rolled viewBox maths (wheel-to-cursor, drag pan, two-finger
- * pinch) — deliberately no dependency. Hit-testing is delegated through one
- * listener on the root using `data-seat-id`, instead of 1,200 handlers.
- *
- * Fat-finger guard: on touch/pen, a tap only *selects* a seat once the map is
- * zoomed past `tapZoomThreshold`; below it the tap zooms in on that spot
- * instead. Mouse clicks always select. The guard covers mutation only — a tap on
- * an occupied seat still says whose it is on the first tap (see `finishPointer`).
+ * There is no pan and no zoom: the whole subsector is always in view, sized to
+ * fill whatever box the caller gives the map (the SVG letterboxes itself via
+ * `preserveAspectRatio`), so a tap is always a selection. Hit-testing is
+ * delegated through one listener on the root using `data-seat-id`, instead of
+ * 1,200 handlers.
  *
  * Keyboard: roving tabindex — one seat is in the tab order, arrows move between
- * seats (row-aware), Enter/Space toggles, `+`/`-`/`0` drive the zoom.
+ * seats (row-aware), Enter/Space toggles.
  */
 
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Minus, Plus, RotateCcw } from 'lucide-react';
 
 import Seat, { isSeatSelectable, seatVisualState } from '@/components/stadium/Seat';
 import SeatTooltip from '@/components/stadium/SeatTooltip';
@@ -78,21 +74,6 @@ function letterbox(rect: { width: number; height: number }, view: ViewBox): Vec 
   return { x: (rect.width - view.w * scale) / 2, y: (rect.height - view.h * scale) / 2 };
 }
 
-/** Client (page) pixels → subsector-local units. */
-function clientToSvg(
-  rect: { left: number; top: number; width: number; height: number },
-  view: ViewBox,
-  clientX: number,
-  clientY: number,
-): Vec {
-  const scale = fitScale(rect, view);
-  const off = letterbox(rect, view);
-  return {
-    x: view.x + (clientX - rect.left - off.x) / scale,
-    y: view.y + (clientY - rect.top - off.y) / scale,
-  };
-}
-
 /** Subsector-local units → pixels inside the map container. */
 function svgToContainer(
   size: { width: number; height: number },
@@ -102,39 +83,6 @@ function svgToContainer(
   const scale = fitScale(size, view);
   const off = letterbox(size, view);
   return { x: off.x + (point.x - view.x) * scale, y: off.y + (point.y - view.y) * scale };
-}
-
-/** Keep the view inside the base box; centre it when it is larger. */
-function clampView(view: ViewBox, base: ViewBox): ViewBox {
-  const x =
-    view.w >= base.w
-      ? base.x + (base.w - view.w) / 2
-      : Math.min(Math.max(view.x, base.x), base.x + base.w - view.w);
-  const y =
-    view.h >= base.h
-      ? base.y + (base.h - view.h) / 2
-      : Math.min(Math.max(view.y, base.y), base.y + base.h - view.h);
-  return { x, y, w: view.w, h: view.h };
-}
-
-/** Zoom to `targetZoom` (1 = whole subsector) keeping `focus` under the cursor. */
-function zoomToward(
-  base: ViewBox,
-  view: ViewBox,
-  targetZoom: number,
-  focus: Vec,
-  maxZoom: number,
-): ViewBox {
-  const zoom = Math.min(Math.max(targetZoom, 1), maxZoom);
-  const w = base.w / zoom;
-  const h = base.h / zoom;
-  const next: ViewBox = {
-    x: focus.x - (focus.x - view.x) * (w / view.w),
-    y: focus.y - (focus.y - view.y) * (h / view.h),
-    w,
-    h,
-  };
-  return clampView(next, base);
 }
 
 /* ------------------------------------------------------------------ *
@@ -165,7 +113,7 @@ function seatFingerprint(seats: readonly SeatDTO[]): string {
 /**
  * Returns a reference that only changes when something a seat *renders* changed.
  * The fingerprint is computed only when the incoming array identity changes
- * (i.e. once per poll) — never on the pan/zoom re-renders in between.
+ * (i.e. once per poll) — never on the hover/selection re-renders in between.
  */
 function useStableSeats(seats: readonly SeatDTO[]): readonly SeatDTO[] {
   const cache = useRef<{ source: readonly SeatDTO[]; print: string; value: readonly SeatDTO[] }>({
@@ -314,13 +262,44 @@ function rowsAreHorizontal(side: PitchSide): boolean {
   return side === 'top' || side === 'bottom';
 }
 
-interface RowLabel {
+/**
+ * Largest angular deviation (degrees) of the seat glyphs from their circular
+ * mean. A straight stand sits within a few degrees of one direction; the curved
+ * corner blocks (Г17, Г22, the Б corners) sweep 30–60°, and that sweep is what
+ * bends the rows. Circular, not min/max of raw degrees: А's seats mix -179° and
+ * +179°, which are 2° apart, not 358°.
+ */
+function maxAngleDeviationDeg(seats: readonly SeatDTO[]): number {
+  if (seats.length === 0) return 0;
+  let sx = 0;
+  let sy = 0;
+  for (const seat of seats) {
+    const rad = (seat.angle * Math.PI) / 180;
+    sx += Math.cos(rad);
+    sy += Math.sin(rad);
+  }
+  const mean = Math.atan2(sy, sx);
+  let max = 0;
+  for (const seat of seats) {
+    const rad = (seat.angle * Math.PI) / 180;
+    let d = Math.abs(rad - mean) % (2 * Math.PI);
+    if (d > Math.PI) d = 2 * Math.PI - d;
+    if (d > max) max = d;
+  }
+  return (max * 180) / Math.PI;
+}
+
+/** Above this the block is treated as curved and row labels follow each row. */
+const CURVED_DEVIATION_DEG = 8;
+
+/** One row number, fully positioned — the render step just prints these. */
+interface PlacedRowLabel {
+  key: string;
   row: number;
-  /** Position along the row's own axis centre (y for horizontal rows, x for vertical). */
-  across: number;
-  /** The two ends of the row, along the direction the seats run. */
-  start: number;
-  end: number;
+  x: number;
+  y: number;
+  anchor: 'start' | 'middle' | 'end';
+  baseline: 'auto' | 'central' | 'hanging';
 }
 
 /* ------------------------------------------------------------------ *
@@ -335,8 +314,6 @@ export interface SeatMapProps {
   selectedSeatIds?: ReadonlySet<string> | readonly string[];
   /** Fires for selectable seats only. */
   onSeatToggle?: (seat: SeatDTO) => void;
-  /** Fires when a seat was tapped but the fat-finger guard swallowed it. */
-  onTapBlocked?: () => void;
   /** Fires when a non-selectable seat was activated. */
   onSeatUnavailable?: (seat: SeatDTO) => void;
   locale?: Locale;
@@ -353,10 +330,6 @@ export interface SeatMapProps {
    * so this also decides which axis the row labels sit on.
    */
   pitchSide?: PitchSide;
-  showControls?: boolean;
-  /** Zoom below which touch taps zoom instead of selecting. Default 1.6. */
-  tapZoomThreshold?: number;
-  maxZoom?: number;
   /** Shows a subtle "updating" pip while a poll is in flight. */
   isRefreshing?: boolean;
 }
@@ -392,7 +365,6 @@ export default function SeatMap({
   seats,
   selectedSeatIds,
   onSeatToggle,
-  onTapBlocked,
   onSeatUnavailable,
   locale = DEFAULT_LOCALE,
   className,
@@ -400,9 +372,6 @@ export default function SeatMap({
   showRowLabels = true,
   showPitchHint = true,
   pitchSide = 'top',
-  showControls = true,
-  tapZoomThreshold = 1.6,
-  maxZoom = 8,
   isRefreshing = false,
 }: SeatMapProps) {
   const stableSeats = useStableSeats(seats);
@@ -412,6 +381,17 @@ export default function SeatMap({
   const svgRef = useRef<SVGSVGElement | null>(null);
 
   /* --- geometry ------------------------------------------------------ */
+
+  /** Curved corner block? Decides how the row labels are laid out. A merged
+   *  grouped corner (seats carrying `block`) always takes the curved path: its
+   *  row numbers repeat across members, which the straight gutters — keyed on
+   *  the row number alone — cannot represent. */
+  const curved = useMemo(
+    () =>
+      maxAngleDeviationDeg(stableSeats) > CURVED_DEVIATION_DEG ||
+      stableSeats.some((seat) => seat.block !== undefined),
+    [stableSeats],
+  );
 
   const geometry = useMemo(() => {
     const declared = parseViewBox(subsector.viewBox, subsector.width, subsector.height);
@@ -436,11 +416,12 @@ export default function SeatMap({
     // Room for the row labels sitting outside the outermost seats. Rows run
     // horizontally on А/В and vertically on Б/Г, so the gutter has to be on the
     // matching axis — reserving it sideways on a vertical-row stand clipped the
-    // labels straight off the top and bottom edges.
+    // labels straight off the top and bottom edges. On a CURVED corner block the
+    // rows bend through both axes, so the gutter is reserved on both.
     const gutter = size * (showRowLabels ? 2.6 : 1.2);
     const alongX = rowsAreHorizontal(pitchSide);
-    const padX = alongX ? gutter : size * 1.2;
-    const padY = alongX ? size * 1.2 : gutter;
+    const padX = curved || alongX ? gutter : size * 1.2;
+    const padY = curved || !alongX ? gutter : size * 1.2;
     const left = Math.min(declared.x, minX - padX);
     const top = Math.min(declared.y, minY - padY);
     const right = Math.max(declared.x + declared.w, maxX + padX);
@@ -461,46 +442,14 @@ export default function SeatMap({
     showRowLabels,
     showPitchHint,
     pitchSide,
+    curved,
   ]);
 
   const base = geometry.base;
   const size = geometry.size;
-  const baseKey = viewBoxString(base);
-
-  /* --- view state ---------------------------------------------------- */
-
-  const [viewOverride, setViewOverride] = useState<ViewBox | null>(null);
-  const [baseSnapshot, setBaseSnapshot] = useState(baseKey);
-  // Derive-during-render reset: a new subsector (or a rescaled base) starts
-  // from the full view instead of keeping a stale, out-of-range viewBox.
-  if (baseSnapshot !== baseKey) {
-    setBaseSnapshot(baseKey);
-    setViewOverride(null);
-  }
-  const view = viewOverride ?? base;
-  const zoom = base.w / view.w;
-
-  const viewRef = useRef(view);
-  viewRef.current = view;
-  const baseRef = useRef(base);
-  baseRef.current = base;
-
-  const applyView = useCallback((next: ViewBox) => {
-    setViewOverride(clampView(next, baseRef.current));
-  }, []);
-
-  const zoomBy = useCallback(
-    (factor: number, focus?: Vec) => {
-      const current = viewRef.current;
-      const centre = focus ?? { x: current.x + current.w / 2, y: current.y + current.h / 2 };
-      setViewOverride(
-        zoomToward(baseRef.current, current, (baseRef.current.w / current.w) * factor, centre, maxZoom),
-      );
-    },
-    [maxZoom],
-  );
-
-  const resetView = useCallback(() => setViewOverride(null), []);
+  // No pan and no zoom: the viewBox IS the base box, always. The map fills the
+  // caller's container and `preserveAspectRatio` letterboxes the difference.
+  const view = base;
 
   /* --- container size (for tooltip placement) ------------------------ */
 
@@ -528,15 +477,25 @@ export default function SeatMap({
   }, [stableSeats]);
 
   const nav = useMemo(() => {
-    const grouped = new Map<number, SeatDTO[]>();
+    // Keyed on block + row, not row alone: a merged grouped corner carries two
+    // or three independently-numbered blocks on one canvas, so "row 5" exists
+    // two or three times — as DIFFERENT physical rows. On a plain subsector
+    // `block` is absent and this collapses to the row number.
+    const grouped = new Map<string, { block: string; row: number; seats: SeatDTO[] }>();
     for (const seat of stableSeats) {
-      const list = grouped.get(seat.row);
-      if (list) list.push(seat);
-      else grouped.set(seat.row, [seat]);
+      const key = `${seat.block ?? ''}|${seat.row}`;
+      const entry = grouped.get(key);
+      if (entry) entry.seats.push(seat);
+      else grouped.set(key, { block: seat.block ?? '', row: seat.row, seats: [seat] });
     }
-    const rows = [...grouped.entries()]
-      .sort((a, b) => a[0] - b[0])
-      .map(([row, list]) => ({ row, seats: [...list].sort((a, b) => a.number - b.number) }));
+    const rows = [...grouped.values()]
+      .sort((a, b) =>
+        a.block === b.block ? a.row - b.row : a.block < b.block ? -1 : 1,
+      )
+      .map((entry) => ({
+        ...entry,
+        seats: [...entry.seats].sort((a, b) => a.number - b.number),
+      }));
 
     const index = new Map<string, { rowIndex: number; seatIndex: number }>();
     rows.forEach((entry, rowIndex) => {
@@ -708,221 +667,93 @@ export default function SeatMap({
 
   /* --- pointer gestures --------------------------------------------- */
 
-  interface Gesture {
-    pointers: Map<number, Vec>;
-    mode: 'none' | 'pan' | 'pinch';
+  /**
+   * With pan and zoom gone, the only gesture left is the tap itself — but it
+   * still has to be hand-tracked: a press that slides off a seat, outlives
+   * `TAP_MAX_MS`, or was ever part of a two-finger gesture must not book one.
+   */
+  interface TapGesture {
+    /** The pointer being tracked; anything else is ignored. */
+    pointerId: number | null;
+    /** A second finger landed at some point — whatever this was, not a tap. */
     multiTouch: boolean;
     downTarget: EventTarget | null;
     pointerType: string;
     downClient: Vec;
     downTime: number;
     moved: boolean;
-    rect: { left: number; top: number; width: number; height: number };
-    startView: ViewBox;
-    startScale: number;
-    pinchStartDist: number;
-    pinchStartSvg: Vec;
   }
 
-  const emptyRect = { left: 0, top: 0, width: 0, height: 0 };
-  const gesture = useRef<Gesture>({
-    pointers: new Map(),
-    mode: 'none',
+  const gesture = useRef<TapGesture>({
+    pointerId: null,
     multiTouch: false,
     downTarget: null,
     pointerType: 'mouse',
     downClient: { x: 0, y: 0 },
     downTime: 0,
     moved: false,
-    rect: emptyRect,
-    startView: base,
-    startScale: 1,
-    pinchStartDist: 0,
-    pinchStartSvg: { x: 0, y: 0 },
   });
 
   const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
-    const svg = svgRef.current;
-    if (!svg) return;
     const g = gesture.current;
-    g.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-
-    if (g.pointers.size === 1) {
-      // Press-to-peek: a phone cannot hover, so the press itself opens the
-      // bubble. It is anchored above the seat, never under the finger.
-      if (event.pointerType !== 'mouse') {
-        const seatId = seatIdFromTarget(event.target);
-        if (seatId !== null) commitHover(seatId);
-      }
-      const rect = svg.getBoundingClientRect();
-      g.mode = 'pan';
-      g.multiTouch = false;
-      g.downTarget = event.target;
-      g.pointerType = event.pointerType;
-      g.downClient = { x: event.clientX, y: event.clientY };
-      g.downTime = event.timeStamp;
-      g.moved = false;
-      g.rect = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
-      g.startView = viewRef.current;
-      g.startScale = fitScale(rect, viewRef.current);
+    if (g.pointerId !== null) {
+      // A second finger. Nothing multi-touch selects, and the peek goes too.
+      g.multiTouch = true;
+      commitHover(null);
       return;
     }
-
-    if (g.pointers.size === 2) {
-      const [a, b] = [...g.pointers.values()];
-      g.mode = 'pinch';
-      g.multiTouch = true;
-      g.startView = viewRef.current;
-      g.pinchStartDist = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
-      g.pinchStartSvg = clientToSvg(
-        g.rect,
-        g.startView,
-        (a.x + b.x) / 2,
-        (a.y + b.y) / 2,
-      );
+    // Press-to-peek: a phone cannot hover, so the press itself opens the
+    // bubble. It is anchored above the seat, never under the finger.
+    if (event.pointerType !== 'mouse') {
+      const seatId = seatIdFromTarget(event.target);
+      if (seatId !== null) commitHover(seatId);
     }
+    g.pointerId = event.pointerId;
+    g.multiTouch = false;
+    g.downTarget = event.target;
+    g.pointerType = event.pointerType;
+    g.downClient = { x: event.clientX, y: event.clientY };
+    g.downTime = event.timeStamp;
+    g.moved = false;
   };
 
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
     const g = gesture.current;
-    if (!g.pointers.has(event.pointerId)) return;
-    g.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-
-    if (g.mode === 'pinch' && g.pointers.size >= 2) {
-      const [a, b] = [...g.pointers.values()];
-      const dist = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
-      const factor = dist / g.pinchStartDist;
-      const startZoom = baseRef.current.w / g.startView.w;
-      const targetZoom = Math.min(Math.max(startZoom * factor, 1), maxZoom);
-      const w = baseRef.current.w / targetZoom;
-      const h = baseRef.current.h / targetZoom;
-      const midX = (a.x + b.x) / 2;
-      const midY = (a.y + b.y) / 2;
-      const probe: ViewBox = { x: 0, y: 0, w, h };
-      const scale = fitScale(g.rect, probe);
-      const off = letterbox(g.rect, probe);
-      applyView({
-        x: g.pinchStartSvg.x - (midX - g.rect.left - off.x) / scale,
-        y: g.pinchStartSvg.y - (midY - g.rect.top - off.y) / scale,
-        w,
-        h,
-      });
-      // A pinch is navigation, not reading — the peek goes with it.
-      if (!g.moved) commitHover(null);
-      g.moved = true;
-      return;
-    }
-
-    if (g.mode !== 'pan') return;
+    if (g.pointerId !== event.pointerId || g.moved) return;
     const dx = event.clientX - g.downClient.x;
     const dy = event.clientY - g.downClient.y;
-    if (!g.moved && Math.hypot(dx, dy) < TAP_MAX_PX) return;
-    // Past the tap slop this is a drag, not a read: drop the peek so the bubble
-    // does not ride along over seats the finger is only passing.
-    if (!g.moved && g.pointerType !== 'mouse') commitHover(null);
+    if (Math.hypot(dx, dy) < TAP_MAX_PX) return;
+    // Past the tap slop this is a scrub, not a read: drop the peek so the
+    // bubble does not ride along over seats the finger is only passing.
+    if (g.pointerType !== 'mouse') commitHover(null);
     g.moved = true;
-    applyView({
-      x: g.startView.x - dx / g.startScale,
-      y: g.startView.y - dy / g.startScale,
-      w: g.startView.w,
-      h: g.startView.h,
-    });
   };
 
   const finishPointer = (event: React.PointerEvent<SVGSVGElement>) => {
     const g = gesture.current;
-    const wasTracking = g.pointers.delete(event.pointerId);
-    if (!wasTracking) return;
-
-    if (g.pointers.size >= 1) {
-      // Second finger lifted: fall back to panning with what is left.
-      const remaining = [...g.pointers.values()][0];
-      g.mode = 'pan';
-      g.downClient = remaining;
-      g.startView = viewRef.current;
-      g.startScale = fitScale(g.rect, viewRef.current);
-      g.moved = true;
-      return;
-    }
+    if (g.pointerId !== event.pointerId) return;
 
     // Let a touch peek linger past the lift so it can actually be read, then
     // fade by itself. Without this the bubble stayed up until the next touch —
     // a real bug in the previous version, where nothing cleared it at all.
     if (g.pointerType !== 'mouse') scheduleHover(null, TOUCH_PEEK_MS);
 
-    const isTap =
-      !g.moved && !g.multiTouch && event.timeStamp - g.downTime < TAP_MAX_MS && g.mode === 'pan';
-    g.mode = 'none';
+    const isTap = !g.moved && !g.multiTouch && event.timeStamp - g.downTime < TAP_MAX_MS;
+    const target = g.downTarget;
+    g.pointerId = null;
+    g.downTarget = null;
     if (!isTap) return;
 
-    const seatId = seatIdFromTarget(g.downTarget);
-    const coarse = g.pointerType !== 'mouse';
-
-    if (coarse && zoom < tapZoomThreshold) {
-      // Fat-finger guard: at landing zoom a seat glyph is ~4.6 px wide, so zoom
-      // into the tapped spot rather than guessing which seat was meant.
-      const focus = clientToSvg(g.rect, g.startView, event.clientX, event.clientY);
-      zoomBy(Math.max(tapZoomThreshold / Math.max(zoom, 0.001), 1.9), focus);
-
-      // D3. …but the guard exists to stop a fat finger MUTATING the wrong seat.
-      // Reading whose seat it is mutates nothing, and the app has already
-      // committed to a seat — `handlePointerDown` opened the peek bubble on it.
-      // Staying silent about the seat we just picked is the inconsistency, and it
-      // is why the toast `seatHolder.ts` calls the primary TOUCH affordance
-      // needed two taps while the bubble that is `aria-hidden` answered on the
-      // first. This branch can reach `onSeatUnavailable` only, never
-      // `onSeatToggle`, so an ambiguous tap can announce the wrong seat but can
-      // never book one. `onSeatToggle` gates it for the same reason `activate`
-      // does: a read-only map has nothing to refuse.
-      const tapped = seatId === null ? undefined : seatById.get(seatId);
-      if (
-        onSeatToggle &&
-        tapped !== undefined &&
-        !isSeatSelectable(seatVisualState(tapped, selected.has(tapped.id)))
-      ) {
-        setActiveSeatId(tapped.id);
-        onSeatUnavailable?.(tapped);
-        return;
-      }
-      // A FREE seat still opens nothing on tap 1 — `isSeatSelectable('FREE')` is
-      // true, so it falls through to here and the zoom above is the whole answer.
-      if (seatId) onTapBlocked?.();
-      return;
-    }
+    const seatId = seatIdFromTarget(target);
     if (seatId) activate(seatId);
   };
 
   const handlePointerCancel = (event: React.PointerEvent<SVGSVGElement>) => {
     const g = gesture.current;
-    g.pointers.delete(event.pointerId);
-    if (g.pointers.size === 0) {
-      g.mode = 'none';
-      if (g.pointerType !== 'mouse') scheduleHover(null, TOUCH_PEEK_MS);
-    }
-  };
-
-  // Non-passive wheel listener: React registers `onWheel` passively, so
-  // `preventDefault()` there would be ignored and the page would scroll.
-  useEffect(() => {
-    const node = svgRef.current;
-    if (!node) return;
-    const onWheel = (event: WheelEvent) => {
-      event.preventDefault();
-      const rect = node.getBoundingClientRect();
-      const focus = clientToSvg(rect, viewRef.current, event.clientX, event.clientY);
-      const step = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
-      const factor = Math.exp(-step / 320);
-      zoomBy(factor, focus);
-    };
-    node.addEventListener('wheel', onWheel, { passive: false });
-    return () => node.removeEventListener('wheel', onWheel);
-  }, [zoomBy]);
-
-  const handleDoubleClick = (event: React.MouseEvent<SVGSVGElement>) => {
-    const svg = svgRef.current;
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    zoomBy(1.8, clientToSvg(rect, viewRef.current, event.clientX, event.clientY));
+    if (g.pointerId !== event.pointerId) return;
+    g.pointerId = null;
+    g.downTarget = null;
+    if (g.pointerType !== 'mouse') scheduleHover(null, TOUCH_PEEK_MS);
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<SVGSVGElement>) => {
@@ -956,28 +787,48 @@ export default function SeatMap({
         event.preventDefault();
         if (activeId) activate(activeId);
         return;
-      case '+':
-      case '=':
-        event.preventDefault();
-        zoomBy(1.4);
-        return;
-      case '-':
-      case '_':
-        event.preventDefault();
-        zoomBy(1 / 1.4);
-        return;
-      case '0':
-        event.preventDefault();
-        resetView();
-        return;
       default:
     }
   };
 
   /* --- render layers ------------------------------------------------- */
 
-  const rowLabels = useMemo<RowLabel[]>(() => {
+  const rowLabels = useMemo<PlacedRowLabel[]>(() => {
     if (!showRowLabels) return [];
+
+    if (curved) {
+      // Curved corner block: the rows are arcs, so the shared straight gutters
+      // below have no meaning — projecting an arc onto one axis is what strewed
+      // the numbers across the middle of the corner maps. Instead each label
+      // sits just past its own row's two END seats, pushed outward along the
+      // row's local direction (the line to the neighbouring seat), which
+      // follows the curve wherever it turns.
+      const labels: PlacedRowLabel[] = [];
+      const pad = size * 1.5;
+      const place = (rowKey: string, row: number, end: SeatDTO, neighbour: SeatDTO, key: string) => {
+        const dx = end.x - neighbour.x;
+        const dy = end.y - neighbour.y;
+        const len = Math.hypot(dx, dy);
+        if (len < 1e-6) return;
+        labels.push({
+          key: `${rowKey}:${key}`,
+          row,
+          x: end.x + (dx / len) * pad,
+          y: end.y + (dy / len) * pad,
+          anchor: 'middle',
+          baseline: 'central',
+        });
+      };
+      for (const entry of nav.rows) {
+        const seats = entry.seats;
+        if (seats.length < 2) continue; // a lone seat has no row direction
+        const rowKey = `${entry.block}|${entry.row}`;
+        place(rowKey, entry.row, seats[0], seats[1], 'start');
+        place(rowKey, entry.row, seats[seats.length - 1], seats[seats.length - 2], 'end');
+      }
+      return labels;
+    }
+
     // A row extends along the seat direction and is offset along the row
     // direction. Which of those is x and which is y depends on the stand: rows
     // are horizontal on А/В (pitch top/bottom) and vertical on Б/Г.
@@ -1006,15 +857,44 @@ export default function SeatMap({
       if (entry.min < blockStart) blockStart = entry.min;
       if (entry.max > blockEnd) blockEnd = entry.max;
     }
+    const pad = size * 0.7;
     return [...acc.entries()]
       .sort((a, b) => a[0] - b[0])
-      .map(([row, entry]) => ({
-        row,
-        across: entry.across / entry.count,
-        start: blockStart,
-        end: blockEnd,
-      }));
-  }, [showRowLabels, stableSeats, pitchSide]);
+      .flatMap(([row, entry]) => {
+        const across = entry.across / entry.count;
+        // Labels sit just past each end of the row, whichever axis the row runs
+        // along, anchored so they grow *away* from the seats: with a centred
+        // anchor a two-digit number is twice as wide as a one-digit one and
+        // half of that width lands on top of the last seat — which is exactly
+        // what rows 10+ looked like.
+        const ends: Array<{ at: number; side: 'start' | 'end' }> = [
+          { at: blockStart - pad, side: 'start' },
+          { at: blockEnd + pad, side: 'end' },
+        ];
+        return ends.map(({ at, side }): PlacedRowLabel => {
+          if (horizontal) {
+            return {
+              key: `${row}:${side}`,
+              row,
+              x: at,
+              y: across,
+              anchor: side === 'start' ? 'end' : 'start',
+              baseline: 'central',
+            };
+          }
+          // On a vertical row the labels sit above and below it, so the growth
+          // direction is the baseline, not the anchor.
+          return {
+            key: `${row}:${side}`,
+            row,
+            x: across,
+            y: at,
+            anchor: 'middle',
+            baseline: side === 'start' ? 'auto' : 'hanging',
+          };
+        });
+      });
+  }, [showRowLabels, curved, nav, stableSeats, pitchSide, size]);
 
   const seatNodes = useMemo(
     () =>
@@ -1029,6 +909,7 @@ export default function SeatMap({
           angle={seat.angle}
           type={seat.type}
           white={seat.white}
+          block={seat.block ?? null}
           state={seatVisualState(seat, selected.has(seat.id))}
           holder={seat.holder}
           note={seat.note}
@@ -1042,18 +923,16 @@ export default function SeatMap({
   );
 
   const labelSize = size * 0.9;
-  const canSelectByTap = zoom >= tapZoomThreshold;
 
   return (
     <div
       // Frameless on purpose: callers put the map inside their own panel.
+      // The map fills whatever box it is given — the caller owns the height
+      // (e.g. `flex-1 min-h-0` to take the rest of the viewport) and the SVG
+      // letterboxes the subsector into it.
       className={cn('relative overflow-hidden rounded-xl bg-surface', className)}
     >
-      <div
-        ref={containerRef}
-        className="relative w-full"
-        style={{ aspectRatio: `${base.w} / ${base.h}` }}
-      >
+      <div ref={containerRef} className="relative h-full w-full">
         <svg
           ref={svgRef}
           viewBox={viewBoxString(view)}
@@ -1067,7 +946,6 @@ export default function SeatMap({
           onPointerCancel={handlePointerCancel}
           onPointerOver={handlePointerOver}
           onPointerLeave={handlePointerLeave}
-          onDoubleClick={handleDoubleClick}
           onKeyDown={handleKeyDown}
         >
           <title>
@@ -1111,39 +989,18 @@ export default function SeatMap({
 
           {rowLabels.length > 0 ? (
             <g aria-hidden="true" className="fill-seat-label tabular">
-              {rowLabels.map((label) => {
-                // Labels sit just past each end of the row, whichever axis the
-                // row runs along, and are anchored so they grow *away* from the
-                // seats. With a centred anchor a two-digit number is twice as
-                // wide as a one-digit one and half of that width lands on top of
-                // the last seat — which is exactly what rows 10+ looked like.
-                const horizontal = rowsAreHorizontal(pitchSide);
-                const pad = size * 0.7;
-                const ends: Array<{ at: number; anchor: 'start' | 'end' }> = [
-                  { at: label.start - pad, anchor: 'end' },
-                  { at: label.end + pad, anchor: 'start' },
-                ];
-                return (
-                  <g key={label.row}>
-                    {ends.map(({ at, anchor }) => (
-                      <text
-                        key={anchor}
-                        x={horizontal ? at : label.across}
-                        y={horizontal ? label.across : at}
-                        // On a vertical row the labels sit above and below it, so
-                        // the growth direction is the baseline, not the anchor.
-                        textAnchor={horizontal ? anchor : 'middle'}
-                        dominantBaseline={
-                          horizontal ? 'central' : anchor === 'end' ? 'auto' : 'hanging'
-                        }
-                        fontSize={labelSize}
-                      >
-                        {label.row}
-                      </text>
-                    ))}
-                  </g>
-                );
-              })}
+              {rowLabels.map((label) => (
+                <text
+                  key={label.key}
+                  x={label.x}
+                  y={label.y}
+                  textAnchor={label.anchor}
+                  dominantBaseline={label.baseline}
+                  fontSize={labelSize}
+                >
+                  {label.row}
+                </text>
+              ))}
             </g>
           ) : null}
 
@@ -1159,6 +1016,7 @@ export default function SeatMap({
             key={hover.session}
             row={hovered.row}
             number={hovered.number}
+            block={hovered.block ?? null}
             x={tooltip.x}
             y={tooltip.y}
             state={seatVisualState(hovered, selected.has(hovered.id))}
@@ -1172,46 +1030,11 @@ export default function SeatMap({
         ) : null}
       </div>
 
-      {interactive && !canSelectByTap ? (
-        <p className="pointer-events-none absolute left-3 top-3 rounded-md bg-surface-raised/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
-          {t(locale, 'map.seatMapHint')}
-        </p>
-      ) : null}
-
       {isRefreshing ? (
         <span className="pointer-events-none absolute right-3 top-3 flex items-center gap-1.5 rounded-md bg-surface-raised/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
           <span className="size-1.5 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
           <span className="sr-only">{t(locale, 'common.loading')}</span>
         </span>
-      ) : null}
-
-      {showControls ? (
-        <div className="mt-2 flex justify-end gap-1.5">
-          <button
-            type="button"
-            onClick={() => zoomBy(1.4)}
-            aria-label={t(locale, 'map.zoomIn')}
-            className="flex size-9 items-center justify-center rounded-lg border border-border bg-surface-raised text-foreground shadow-sm transition-colors hover:bg-muted motion-reduce:transition-none"
-          >
-            <Plus className="size-4" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            onClick={() => zoomBy(1 / 1.4)}
-            aria-label={t(locale, 'map.zoomOut')}
-            className="flex size-9 items-center justify-center rounded-lg border border-border bg-surface-raised text-foreground shadow-sm transition-colors hover:bg-muted motion-reduce:transition-none"
-          >
-            <Minus className="size-4" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            onClick={resetView}
-            aria-label={t(locale, 'map.zoomReset')}
-            className="flex size-9 items-center justify-center rounded-lg border border-border bg-surface-raised text-foreground shadow-sm transition-colors hover:bg-muted motion-reduce:transition-none"
-          >
-            <RotateCcw className="size-4" aria-hidden="true" />
-          </button>
-        </div>
       ) : null}
     </div>
   );

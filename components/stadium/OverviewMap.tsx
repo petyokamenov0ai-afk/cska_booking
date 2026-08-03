@@ -13,8 +13,9 @@
  * `lib/types.ts`). `overviewBlocks()` collapses them, so a grouped wedge is one
  * shape with one caption, one aggregated availability shade and one hit target
  * rather than three stacked identical paths whose topmost copy would silently
- * own every click. Level-2 navigation into a grouped wedge goes to the card list
- * below the map, which is the only honest destination — see `onSelectGroup`.
+ * own every click. Level-2 navigation into a grouped wedge goes to the block
+ * code's subsector page, which renders every member of the group side by side —
+ * one click lands on seats, same as an ungrouped block.
  *
  * ## What the fill means
  *
@@ -503,21 +504,13 @@ export interface OverviewMapProps {
   selectedSubsector?: string | null;
   /** Fired when a subsector in a not-yet-focused sector is activated. */
   onSelectSector?: (sectorCode: string) => void;
-  /** Fired when a subsector inside the focused sector is activated. */
-  onSelectSubsector?: (subsectorCode: string, sectorCode: string) => void;
   /**
-   * Fired instead of `onSelectSubsector` when the activated block covers more
-   * than one subsector, because there is no single honest destination: no merged
-   * seat map exists and none can be synthesised (each subsector's seats live in
-   * their own local space, and `data/stadium.json` records no local→overview
-   * transform). The host is expected to surface the members — `SectorZoom`
-   * reveals and focuses their cards in the list under the map.
-   *
-   * Without a handler a grouped block is inert AND LOOKS IT: it leaves the tab
-   * order and loses the pointer cursor, rather than silently routing to an
-   * arbitrary member.
+   * Fired when a subsector inside the focused sector is activated. A grouped
+   * block fires with its BLOCK code (which is the lead member's own code): the
+   * subsector page renders every member of the group side by side, so the block
+   * code is an honest destination for the whole corner.
    */
-  onSelectGroup?: (subsectorCodes: readonly string[], sectorCode: string) => void;
+  onSelectSubsector?: (subsectorCode: string, sectorCode: string) => void;
   /** Always go straight to the subsector, skipping the sector-zoom step. */
   alwaysSelectSubsector?: boolean;
   /** Show the free-seat count inside the shapes. Default `'focused'`. */
@@ -538,7 +531,6 @@ export default function OverviewMap({
   selectedSubsector = null,
   onSelectSector,
   onSelectSubsector,
-  onSelectGroup,
   alwaysSelectSubsector = false,
   detailLevel = 'focused',
   showLabels = true,
@@ -660,11 +652,10 @@ export default function OverviewMap({
       onSelectSector?.(sectorCode);
       return;
     }
-    if (!block.grouped) {
-      onSelectSubsector?.(block.members[0].code, sectorCode);
-      return;
-    }
-    onSelectGroup?.(block.members.map((member) => member.code), sectorCode);
+    // Grouped or not, the block code is a real subsector code (the group takes
+    // its key from the lead member), and the subsector page renders the whole
+    // group — so one click always lands on seats.
+    onSelectSubsector?.(block.code, sectorCode);
   };
 
   return (
@@ -750,11 +741,7 @@ export default function OverviewMap({
               const isSelected = block.members.some((m) => m.code === selectedSubsector);
               const soldOut = level === 'none';
               const shade = SCARCITY_SHADE[level];
-              // A grouped block with nowhere to send the visitor must not look
-              // clickable. At level 1 it only zooms, so it stays live regardless.
-              const zoomedIn = alwaysSelectSubsector || focusedSector === sector.code;
-              const activatable =
-                interactive && (!zoomedIn || !block.grouped || onSelectGroup !== undefined);
+              const activatable = interactive;
 
               const metrics = blockMetrics.get(block.code);
               const codeSize = fitLabelSize(block.code, metrics, labelSize * 1.3);
@@ -778,7 +765,7 @@ export default function OverviewMap({
               const stacked = detailSize !== null;
 
               // A grouped shape must not be opaque to a screen reader: it names
-              // every member, then the aggregate, then where activating it goes.
+              // every member, then the aggregate availability.
               const parts = [
                 block.grouped
                   ? t(locale, 'subsector.group', {
@@ -795,7 +782,6 @@ export default function OverviewMap({
                     : t(locale, 'subsector.seatsFree', { free: entry.free, total: entry.total }),
                 );
               }
-              if (block.grouped && activatable) parts.push(t(locale, 'subsector.groupHint'));
 
               return (
                 <g

@@ -82,7 +82,7 @@
   --seat-free: #2f9e63;
   --seat-free-hover: #1a7f4b;
   --seat-selected: #1f6feb;
-  --seat-mine: #3b82f6;
+  --seat-mine: #dc2626;
   --seat-held: #b6b6bd;
   --seat-reserved: #c0392b;
   --seat-blocked: #e8e8ec;
@@ -136,8 +136,7 @@
     --seat-free: #35b473;
     --seat-free-hover: #4cc98a;
     --seat-selected: #4b8ef7;
-    /* Light enough that Seat.tsx's `dark:text-black/75` glyph stays legible. */
-    --seat-mine: #7fb2ff;
+    --seat-mine: #ef4444;
     --seat-held: #4d4749;
     --seat-reserved: #b8323b;
     --seat-blocked: #241f20;
@@ -186,8 +185,7 @@ html.dark {
   --seat-free: #35b473;
   --seat-free-hover: #4cc98a;
   --seat-selected: #4b8ef7;
-  /* Light enough that Seat.tsx's `dark:text-black/75` glyph stays legible. */
-  --seat-mine: #7fb2ff;
+  --seat-mine: #ef4444;
   --seat-held: #4d4749;
   --seat-reserved: #b8323b;
   --seat-blocked: #241f20;

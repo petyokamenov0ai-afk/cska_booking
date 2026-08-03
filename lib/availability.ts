@@ -24,13 +24,15 @@
  * per subsector) only exist across a join, so this is raw SQL — parameterised via
  * `Prisma.sql`, never string-interpolated.
  *
- * `getSubsectorSeats` is scoped to a single subsector (≈400–1,200 rows) and stays
- * in the type-safe query builder.
+ * `getSubsectorSeats` is scoped to one subsector (≈400–1,200 rows) — or, for a
+ * grouped overview corner, to its two or three members merged into one canvas
+ * by `lib/subsectorGroup.ts` — and stays in the type-safe query builder.
  */
 
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
-import { getSubsectorGeometry } from '@/lib/stadium';
+import { getSubsectorGeometry, getSubsectorGroupCodes } from '@/lib/stadium';
+import { mergeSubsectorGroup } from '@/lib/subsectorGroup';
 import type {
   EventListItemDTO,
   EventStatus,
@@ -183,6 +185,13 @@ export interface SubsectorSeatsResult {
  * returned rather than from `Subsector`'s denormalised columns, so the header can
  * never describe a different payload than the one attached to it.
  *
+ * A code that belongs to a grouped overview corner (Б6/Б6-2; Б10-2/Б11/Б11-2)
+ * returns the WHOLE group, merged into one canvas by `lib/subsectorGroup.ts` —
+ * whichever member the caller named. The overview map draws those corners as
+ * one wedge, so both the page and the poll behind it get one seat map per
+ * wedge. Every other code (and any code unknown to the geometry file, like the
+ * test fixtures') takes the single-subsector path untouched.
+ *
  * @param sessionId the `sid` cookie value. `null` is accepted so a Server
  *   Component can pass `await getSessionId()` straight through: no session
  *   matches no reservation, so every seat comes back `mine: false`.
@@ -193,6 +202,32 @@ export async function getSubsectorSeats(
   subsectorCode: string,
   sessionId: string | null,
   now: Date = new Date(),
+): Promise<SubsectorSeatsResult | null> {
+  const memberCodes = getSubsectorGroupCodes(subsectorCode) ?? [subsectorCode];
+  if (memberCodes.length === 1) {
+    return getSingleSubsectorSeats(eventId, subsectorCode, sessionId, now);
+  }
+
+  const results = await Promise.all(
+    memberCodes.map((code) => getSingleSubsectorSeats(eventId, code, sessionId, now)),
+  );
+  // The code the caller actually asked for decides the 404; a sibling missing
+  // from the DB (seed drift) drops out rather than taking the corner down.
+  if (results[memberCodes.indexOf(subsectorCode)] === null) return null;
+  const members = results.filter(
+    (entry): entry is SubsectorSeatsResult => entry !== null,
+  );
+
+  const blockCode =
+    getSubsectorGeometry(subsectorCode)?.overviewGroup ?? subsectorCode;
+  return mergeSubsectorGroup(blockCode, members);
+}
+
+async function getSingleSubsectorSeats(
+  eventId: string,
+  subsectorCode: string,
+  sessionId: string | null,
+  now: Date,
 ): Promise<SubsectorSeatsResult | null> {
   const eventPromise: Promise<{ id: string } | null> = prisma.event.findUnique({
     where: { id: eventId },

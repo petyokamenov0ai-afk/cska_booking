@@ -327,7 +327,12 @@ export default function SeatNameDialog({
               {t(locale, 'book.nameTitle')}
             </h2>
             <p id={descId} className="mt-1 text-sm text-muted-foreground tabular">
-              {view ? t(locale, 'map.seatTooltip', { row: view.row, number: view.number }) : ''}
+              {/* On merged grouped corners `row`/`number` repeat across member
+                  blocks, so the seat's real block leads the line. */}
+              {view
+                ? (view.block ? `${view.block} · ` : '') +
+                  t(locale, 'map.seatTooltip', { row: view.row, number: view.number })
+                : ''}
             </p>
           </div>
           <button

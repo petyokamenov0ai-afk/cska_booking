@@ -7,12 +7,9 @@
  * `devices` comes from `@playwright/test` itself, so this needs no second
  * Playwright project, no config change and no new dependency.
  *
- * The bug: `finishPointer`'s fat-finger guard returned before `activate()`, and
- * `activate()` is the only caller of `onSeatUnavailable` — so at landing zoom
- * (1.0 < `tapZoomThreshold` 1.6) the first tap on an occupied seat said nothing
- * at all. The press-to-peek bubble *did* open on tap 1, but it is `aria-hidden`,
- * so a TalkBack user got literally nothing from the gesture `seatHolder.ts`
- * documents as the primary touch affordance for the holder's name.
+ * The map has no zoom any more — the whole subsector is always in view — so a
+ * tap IS the interaction: on an occupied seat it must say whose it is (toast +
+ * peek bubble), and on a free seat it must open the naming dialog directly.
  */
 
 import { devices, expect, test, type APIRequestContext } from '@playwright/test';
@@ -87,7 +84,7 @@ test.describe('touch', () => {
     await expect(bubble).toContainText(NOTE);
   });
 
-  test('the fat-finger guard is still there — a free seat zooms, it does not book', async ({
+  test('one tap on a free seat opens the naming dialog — no zoom step between', async ({
     page,
   }) => {
     await openSubsector(page);
@@ -97,10 +94,14 @@ test.describe('touch', () => {
 
     await page.locator('[data-seat-id][data-seat-state="FREE"]').first().tap();
 
-    // D3 was fixed by hoisting a READ above the guard, not by deleting the
-    // guard: a tap on a free seat below the zoom threshold still only zooms.
+    // The fat-finger guard went with the zoom: the first tap is the selection.
+    await expect(page.getByTestId('seat-name-dialog')).toBeVisible();
+    // …and nothing zoomed to make that possible — the viewBox is static now.
+    await expect(svg).toHaveAttribute('viewBox', before as string);
+
+    // Dismissing the dialog books nothing: the POST only exists on confirm.
+    await page.keyboard.press('Escape');
     await expect(page.getByTestId('seat-name-dialog')).toBeHidden();
-    await expect(svg).not.toHaveAttribute('viewBox', before as string);
     await expect(page.locator('[data-seat-state="MINE"]')).toHaveCount(0);
   });
 });

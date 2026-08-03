@@ -110,9 +110,9 @@ export default function StadiumMapClient({
     <section
       aria-busy={isNavigating || undefined}
       aria-label={t(locale, 'map.overviewTitle')}
-      className={cn('flex flex-col gap-4', isNavigating && 'opacity-90')}
+      className={cn('flex min-h-0 flex-1 flex-col gap-4', isNavigating && 'opacity-90')}
     >
-      <div className="overflow-hidden rounded-xl border border-border bg-surface">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-surface">
         <SectorZoom
           overview={overview}
           sectors={sectors}

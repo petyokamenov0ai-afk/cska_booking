@@ -237,46 +237,6 @@ export default function SectorZoom({
     return map;
   }, [availability]);
 
-  /**
-   * Where a click on a *grouped* map shape goes.
-   *
-   * The map draws two corners whole that we hold as two and three bookable
-   * blocks, so there is no single subsector to route to and no merged seat map
-   * to route into. The list below already renders all three, with their free
-   * counts and their sold-out state, so activating the shape reveals and focuses
-   * them there instead: one keystroke more than a direct link, the same gesture
-   * for mouse, touch and keyboard, and a failure mode the user can see — three
-   * named blocks rather than a silently wrong one.
-   *
-   * `n` is a click counter, not decoration: re-clicking the same wedge must
-   * re-fire the effect, and the codes alone would compare equal.
-   */
-  const [reveal, setReveal] = useState<{ codes: readonly string[]; n: number } | null>(null);
-  const cardRefs = useRef(new Map<string, HTMLButtonElement>());
-  const listRef = useRef<HTMLUListElement>(null);
-
-  useEffect(() => {
-    if (reveal === null) return;
-    const cards = reveal.codes.map((code) => cardRefs.current.get(code));
-    const bookable = cards.find((el) => el && !el.disabled) ?? null;
-    // Scroll to whichever card exists, but only ever *focus* something that can
-    // take focus: `focus()` silently does nothing on a disabled button, so when
-    // every member is sold out the caret would otherwise stay on the wedge and
-    // the reveal would be invisible to anyone not using a mouse. The list itself
-    // is the fallback — it is what we just scrolled into view.
-    const scrollTarget = bookable ?? cards.find((el) => el) ?? null;
-    scrollTarget?.scrollIntoView({
-      block: 'nearest',
-      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
-    });
-    (bookable ?? listRef.current)?.focus({ preventScroll: true });
-  }, [reveal]);
-
-  // Leaving the stand drops the highlight; it means nothing outside its list.
-  useEffect(() => {
-    setReveal(null);
-  }, [focused]);
-
   const sectorName = focusedSector
     ? locale === 'bg'
       ? focusedSector.nameBg
@@ -284,7 +244,7 @@ export default function SectorZoom({
     : '';
 
   return (
-    <div className={cn('flex flex-col gap-3', className)}>
+    <div className={cn('flex min-h-0 flex-1 flex-col gap-3', className)}>
       {/* Breadcrumb / hint row */}
       <div className="flex min-h-9 flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
@@ -317,10 +277,11 @@ export default function SectorZoom({
 
       <div
         // No border here: the map is normally already inside a framed panel.
-        // The frame's aspect follows the animated view, so `meet` never
-        // letterboxes and the zoom fills the panel exactly.
-        className="relative w-full overflow-hidden rounded-xl bg-surface"
-        style={{ aspectRatio: `${view.w} / ${view.h}` }}
+        // `flex-1 min-h-0` rather than an aspect-ratio box: the frame takes
+        // whatever height the viewport leaves (so the whole page fits on
+        // screen, like the seat maps) and `meet` letterboxes the animated view
+        // inside it.
+        className="relative min-h-0 w-full flex-1 overflow-hidden rounded-xl bg-surface"
       >
         <OverviewMap
           overview={overview}
@@ -331,7 +292,6 @@ export default function SectorZoom({
           selectedSubsector={selectedSubsector}
           onSelectSector={setFocused}
           onSelectSubsector={(code) => onSelectSubsector?.(code)}
-          onSelectGroup={(codes) => setReveal((current) => ({ codes, n: (current?.n ?? 0) + 1 }))}
           detailLevel="focused"
           locale={locale}
           ariaLabel={
@@ -346,33 +306,17 @@ export default function SectorZoom({
       {focusedSector ? (
         <div>
           <p className="mb-2 text-sm text-muted-foreground">{t(locale, 'map.sectorHint')}</p>
-          {/*
-           * `tabIndex={-1}` is the landing spot when a grouped wedge is activated
-           * but none of its members can be booked: `focus()` is a no-op on a
-           * disabled button, so without somewhere to put the caret a keyboard
-           * user would press Enter on the shape and end up nowhere.
-           */}
-          <ul
-            ref={listRef}
-            tabIndex={-1}
-            className="grid grid-cols-2 gap-2 outline-none sm:grid-cols-3 lg:grid-cols-4"
-          >
+          <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
             {focusedSector.subsectors.map((sub) => {
               const entry = availabilityByCode.get(sub.code);
               const level = availabilityLevel(entry?.free, entry?.total);
               const soldOut = level === 'none';
-              const revealed = reveal?.codes.includes(sub.code) ?? false;
               return (
                 <li key={sub.code}>
                   <button
                     type="button"
-                    ref={(el) => {
-                      if (el) cardRefs.current.set(sub.code, el);
-                      else cardRefs.current.delete(sub.code);
-                    }}
                     disabled={soldOut}
                     aria-current={selectedSubsector === sub.code ? 'true' : undefined}
-                    data-revealed={revealed ? 'true' : undefined}
                     onClick={() => onSelectSubsector?.(sub.code)}
                     className={cn(
                       'flex w-full flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-colors',
@@ -380,7 +324,6 @@ export default function SectorZoom({
                       soldOut
                         ? 'cursor-not-allowed border-border bg-muted text-muted-foreground'
                         : 'border-border bg-surface hover:bg-muted',
-                      revealed && 'ring-1 ring-ring',
                       selectedSubsector === sub.code && 'border-primary ring-1 ring-primary',
                     )}
                   >

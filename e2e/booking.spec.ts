@@ -107,10 +107,18 @@ test.describe('stadium', () => {
     // bubble is `aria-hidden` by design.
     await expect(mine).toHaveAttribute('aria-label', /, за Иван Петров-E2E$/);
 
-    // Releasing your own seat shows no dialog: `mine` is tested before `FREE`,
-    // so a release can never fall through into "name this seat".
+    // Releasing is deliberate: clicking your own seat opens a confirm dialog
+    // that shows who the seat is for — it must NOT fall into "name this seat"
+    // (`mine` is tested before `FREE`), and it must not release by itself.
     await page.locator(`[data-seat-id="${seatId}"]`).click();
     await expect(dialog(page)).toBeHidden();
+    const release = page.getByTestId('seat-release-dialog');
+    await expect(release).toBeVisible();
+    await expect(release).toContainText('Иван Петров-E2E');
+
+    // Only the explicit destructive button releases.
+    await release.getByTestId('seat-release-confirm').click();
+    await expect(release).toBeHidden();
     await expect(page.locator(`[data-seat-id="${seatId}"][data-seat-state="FREE"]`)).toBeVisible({
       timeout: 15_000,
     });

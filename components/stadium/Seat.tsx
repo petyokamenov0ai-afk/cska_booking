@@ -63,7 +63,7 @@ const FILL_CLASS: Record<SeatVisualState, string> = {
 const GLYPH_CLASS: Record<SeatVisualState, string> = {
   FREE: 'text-white',
   SELECTED: 'text-white',
-  MINE: 'text-white dark:text-black/75',
+  MINE: 'text-white',
   HELD: 'text-black/65 dark:text-white/75',
   RESERVED: 'text-white/85',
   BLOCKED: 'text-black/35 dark:text-white/35',
@@ -136,6 +136,10 @@ export interface SeatProps {
   type: SeatType;
   /** Light "ЦСКА"-letter seat (В stand). Cosmetic only — still bookable. */
   white: boolean;
+  /** The seat's real subsector, on merged grouped-corner maps only — there
+   *  `row`/`number` repeat across members, so the accessible name leads with
+   *  which block this one is in. */
+  block?: string | null;
   state: SeatVisualState;
   /**
    * Who the seat is for, when it carries a named reservation. Appended to the
@@ -178,6 +182,7 @@ function SeatImpl({
   angle,
   type,
   white,
+  block = null,
   state,
   holder,
   note,
@@ -217,6 +222,7 @@ function SeatImpl({
   const noteLabelFragment =
     noteText === null ? '' : `, ${t(locale, 'seat.ariaNote', { note: noteText })}`;
   const label =
+    (block ? `${block}, ` : '') +
     t(locale, 'seat.aria', { row, number, state: stateLabel }) +
     typeLabel +
     holderLabel +

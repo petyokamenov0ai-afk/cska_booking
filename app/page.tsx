@@ -39,7 +39,7 @@ function overviewSectors(): SectorGeometry[] {
 
 function MapSkeleton() {
   return (
-    <div className="aspect-4/3 w-full rounded-xl border border-border bg-surface">
+    <div className="min-h-0 w-full flex-1 rounded-xl border border-border bg-surface">
       <LoadingBlock locale={locale} className="h-full" />
     </div>
   );
@@ -82,8 +82,10 @@ export default async function StadiumPage({
   const raw = Array.isArray(query.sector) ? query.sector[0] : query.sector;
   const initialSector = raw && raw.length > 0 ? raw : null;
 
+  // `flex-1 min-h-0` all the way down, like the seat page: the bowl — and the
+  // zoomed stand with its subsector list — fits the viewport with no scrolling.
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex min-h-0 flex-1 flex-col">
       <Suspense fallback={<MapSkeleton />}>
         <StadiumMapSection initialSector={initialSector} />
       </Suspense>

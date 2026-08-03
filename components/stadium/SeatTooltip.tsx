@@ -69,6 +69,9 @@ const ACCENT: Record<SeatVisualState, string> = {
 export interface SeatTooltipProps {
   row: number;
   number: number;
+  /** The seat's real subsector, shown only on merged grouped-corner maps where
+   *  `row`/`number` repeat across members. */
+  block?: string | null;
   /**
    * Pixel offset inside the map container. `y` is the seat **centre** — the
    * bubble owns the anchor gap, because only it knows which side it will sit on.
@@ -96,6 +99,7 @@ export interface SeatTooltipProps {
 export default function SeatTooltip({
   row,
   number,
+  block = null,
   x,
   y,
   state,
@@ -107,7 +111,8 @@ export default function SeatTooltip({
   seatHalfPx = 0,
   className,
 }: SeatTooltipProps) {
-  const main = t(locale, 'map.seatTooltip', { row, number });
+  const main =
+    (block ? `${block} · ` : '') + t(locale, 'map.seatTooltip', { row, number });
   // Both gated on the SAME `seatHasHolder` call, so a note can never appear
   // where a holder line cannot. Re-checked here even though `lib/availability`
   // already nulls both, so a standalone `<SeatTooltip>` handed a stale note

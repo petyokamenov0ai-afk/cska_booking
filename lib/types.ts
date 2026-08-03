@@ -62,6 +62,15 @@ export interface SeatDTO {
    * carried by `SubsectorAvailabilityDTO`, whose response is cached and shared.
    */
   note: string | null;
+  /**
+   * The subsector this seat physically belongs to, present ONLY on the merged
+   * grouped-corner responses (`lib/subsectorGroup.ts`), where seats from two or
+   * three independently-numbered blocks share one canvas and `row`/`number`
+   * pairs repeat. Optional rather than nullable: the single-subsector response
+   * — the overwhelmingly common one — is byte-identical to what it was before
+   * groups merged, and "which subsector" is already in that response's header.
+   */
+  block?: string;
 }
 
 export interface SubsectorAvailabilityDTO {
