@@ -50,3 +50,6 @@ yarn-error.log*
 
 # vercel
 .vercel
+
+# local-only compose overrides (host port conflicts differ per machine)
+docker-compose.override.yml
