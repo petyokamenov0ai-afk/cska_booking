@@ -184,6 +184,41 @@ export function getSectorCodeForSubsector(subsectorCode: string): string | null 
   return ensureCache().sectorCodeBySubsectorCode.get(subsectorCode) ?? null;
 }
 
+/** One grouped-corner member's placement in its group lead's local frame. */
+export interface GroupMemberTransform {
+  scale: number;
+  dx: number;
+  dy: number;
+}
+
+let groupTransforms:
+  | Record<string, Record<string, GroupMemberTransform>>
+  | null
+  | undefined;
+
+/**
+ * Measured placement of a grouped corner's members in the group lead's local
+ * frame — produced by `scripts/pipeline/06_group_transforms.py`, which
+ * registers every member's seat cloud onto page 1 of SEATS_CSKA.pdf (the whole
+ * bowl in one shared drawing space). Applying these reassembles the corner
+ * exactly as printed. `null` when the file is absent (the sample fixture has
+ * no groups, so it never needs one) or the block is unknown.
+ */
+export function getSubsectorGroupTransforms(
+  blockCode: string,
+): Record<string, GroupMemberTransform> | null {
+  if (groupTransforms === undefined) {
+    try {
+      groupTransforms = JSON.parse(
+        readFileSync(join(process.cwd(), 'data', 'stadium-groups.json'), 'utf8'),
+      ) as Record<string, Record<string, GroupMemberTransform>>;
+    } catch {
+      groupTransforms = null;
+    }
+  }
+  return groupTransforms?.[blockCode] ?? null;
+}
+
 /**
  * Every subsector drawn as the same overview shape as `code`, in file order —
  * `["Б6", "Б6-2"]` for either Б6 corner code, `[code]` for the 20 ungrouped

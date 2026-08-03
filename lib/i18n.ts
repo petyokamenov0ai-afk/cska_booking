@@ -36,12 +36,18 @@ const bg: Dictionary = {
   nav: {
     home: 'Начало',
     events: 'Мачове',
-    overview: 'Общ изглед',
     myReservation: 'Моята резервация',
     language: 'Език',
     back: 'Назад',
-    backToOverview: 'Към общия изглед',
     backToSector: 'Към сектор {code}',
+  },
+  auth: {
+    title: 'Вход',
+    username: 'Потребителско име',
+    password: 'Парола',
+    submit: 'Влез',
+    failed: 'Грешно потребителско име или парола.',
+    logout: 'Изход',
   },
   common: {
     loading: 'Зареждане…',
@@ -95,14 +101,11 @@ const bg: Dictionary = {
     // code is one of them, so the members have to be spelled out or a screen
     // reader hears a block that is not where activating it goes.
     group: '{code} · {count} блока: {members}',
-    partOf: 'част от {code}',
     seatsFree: '{free} от {total} свободни',
     soldOut: 'Изчерпан',
   },
   map: {
     overviewTitle: 'Избери сектор',
-    overviewHint: 'Докосни сектор, за да го увеличиш.',
-    sectorHint: 'Избери подсектор.',
     pitch: 'Терен',
     rowLabel: 'Ред {row}',
     seatTooltip: 'Ред {row} · Място {number}',
@@ -161,6 +164,7 @@ const bg: Dictionary = {
     bookedFor: 'Резервирано за {name}: ред {row}, място {seat}.',
     /** The release confirm dialog: viewing is the default, releasing is opt-in. */
     releaseTitle: 'Твоя резервация',
+    releaseTitleOther: 'Резервация',
     releaseConfirm: 'Освободи мястото',
   },
   basket: {
@@ -254,12 +258,18 @@ const en: Dictionary = {
   nav: {
     home: 'Home',
     events: 'Matches',
-    overview: 'Overview',
     myReservation: 'My reservation',
     language: 'Language',
     back: 'Back',
-    backToOverview: 'Back to overview',
     backToSector: 'Back to sector {code}',
+  },
+  auth: {
+    title: 'Sign in',
+    username: 'Username',
+    password: 'Password',
+    submit: 'Sign in',
+    failed: 'Invalid username or password.',
+    logout: 'Sign out',
   },
   common: {
     loading: 'Loading…',
@@ -310,14 +320,11 @@ const en: Dictionary = {
   subsector: {
     label: 'Subsector {code}',
     group: '{code} · {count} blocks: {members}',
-    partOf: 'part of {code}',
     seatsFree: '{free} of {total} free',
     soldOut: 'Sold out',
   },
   map: {
     overviewTitle: 'Pick a sector',
-    overviewHint: 'Tap a sector to zoom in.',
-    sectorHint: 'Pick a subsector.',
     pitch: 'Pitch',
     rowLabel: 'Row {row}',
     seatTooltip: 'Row {row} · Seat {number}',
@@ -366,6 +373,7 @@ const en: Dictionary = {
     nameTooShort: 'Enter a name — at least 2 characters.',
     bookedFor: 'Booked for {name}: row {row}, seat {seat}.',
     releaseTitle: 'Your booking',
+    releaseTitleOther: 'Booking',
     releaseConfirm: 'Release the seat',
   },
   basket: {

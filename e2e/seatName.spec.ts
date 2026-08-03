@@ -301,67 +301,36 @@ test.describe('seat naming dialog', () => {
     await expect(page.locator('[data-seat-state="MINE"]')).toHaveCount(0);
   });
 
-  test('D2 — the page behind the dialog does not scroll', async ({ page }) => {
-    // The page must be made scrollable first: at 1280×1100 subsector А1 does not
-    // overflow and every assertion below would be vacuous.
+  test('D2 — the page never scrolls, dialog open or not', async ({ page }) => {
+    // The shell is pinned to the viewport (`h-dvh`): a short window shrinks
+    // the map instead of overflowing the page, so the WINDOW can never scroll
+    // — which is the whole reason the old body-pinning assertions are gone.
+    // What remains to pin: the fit itself, and that wheeling over the map with
+    // the dialog open (the document is inert, so the map's own wheel guard is
+    // off) still moves nothing.
     await page.setViewportSize({ width: 1280, height: 600 });
     await openSubsector(page);
-    // The page must actually overflow, or every assertion below is vacuous. At
-    // the 1280×1100 this file otherwise uses, subsector А1 does not.
-    const maxScroll = await page.evaluate(
-      () => document.documentElement.scrollHeight - window.innerHeight,
-    );
-    expect(maxScroll).toBeGreaterThan(0);
 
-    await page.evaluate(() => window.scrollTo(0, 120));
+    const overflow = () =>
+      page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
+    expect(await overflow()).toBeLessThanOrEqual(0);
 
-    // Open and dismiss once first, so the seat is scrolled into view and the
-    // SECOND open cannot move the page by itself — Playwright's click
-    // auto-scrolls, and that would be indistinguishable from a leak.
-    const seatId = await openDialogOnFreeSeat(page);
-    await page.keyboard.press('Escape');
-    await expect(dialog(page)).toBeHidden();
-
-    /**
-     * Where the <h1> sits in the VIEWPORT. This, and not `window.scrollY`, is
-     * the honest measure: pinning the body sets `scrollY` to 0 by construction,
-     * so an assertion on it would also pass for an implementation that merely
-     * broke scrolling — including one that jumped the page to the top.
-     */
+    await openDialogOnFreeSeat(page);
     const anchorTop = () =>
       page.evaluate(() =>
         Math.round((document.querySelector('h1') as HTMLElement).getBoundingClientRect().top),
       );
     const settled = await anchorTop();
-    const startY = await page.evaluate(() => Math.round(window.scrollY));
-    // A page that is not scrolled proves nothing about restoring a scroll.
-    expect(startY).toBeGreaterThan(0);
 
-    await page.locator(`[data-seat-id="${seatId}"]`).click();
-    await expect(dialog(page)).toBeVisible();
-    // Locking must not move the page.
-    expect(await anchorTop()).toBe(settled);
-
-    // Over the map — the worst offender, because the document is inert and the
-    // map's own non-passive `preventDefault` wheel guard is therefore off too.
-    // Measured at 382 px of background scroll before the lock existed.
+    // Over the map — the old worst offender, measured at 382 px of background
+    // scroll before the shell was viewport-pinned.
     await page.mouse.move(640, 300);
     await page.mouse.wheel(0, 400);
     expect(await anchorTop()).toBe(settled);
-
-    // The case `overflow: hidden` misses: `focus()` inside the dialog moves the
-    // nearest scrollable ancestor, which is the root.
-    await page.evaluate(() => window.scrollTo(0, 999));
-    expect(await anchorTop()).toBe(settled);
+    expect(await overflow()).toBeLessThanOrEqual(0);
 
     await page.keyboard.press('Escape');
     await expect(dialog(page)).toBeHidden();
-    // Restored exactly: the same offset, in the same place, with no jump to the
-    // top for a frame and no scrollbar-gutter shift. The inline styles are
-    // cleared back to what they were, not merely overwritten.
-    expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(startY);
-    expect(await anchorTop()).toBe(settled);
-    expect(await page.evaluate(() => document.body.style.position)).toBe('');
   });
 
   test('a double submit books exactly once', async ({ page }) => {
@@ -410,8 +379,12 @@ test.describe('seat naming dialog', () => {
     await noteBox(page).fill('ще бъде изхвърлено');
 
     // A different context means a different `sid` cookie, so this is genuinely
-    // somebody else taking the seat out from under the open dialog.
-    const intruder = await playwright.request.newContext({ baseURL });
+    // somebody else taking the seat out from under the open dialog. Staff
+    // login comes from the shared storage state.
+    const intruder = await playwright.request.newContext({
+      baseURL,
+      storageState: 'e2e/.auth/state.json',
+    });
     try {
       const response = await intruder.post(`/api/seats/${encodeURIComponent(seatId)}`, {
         data: { name: 'Друг Човек', note: 'бележка на натрапника' },

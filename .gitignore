@@ -53,3 +53,6 @@ yarn-error.log*
 
 # local-only compose overrides (host port conflicts differ per machine)
 docker-compose.override.yml
+
+# Playwright auth storage state (minted by e2e/global-setup.ts)
+/e2e/.auth/

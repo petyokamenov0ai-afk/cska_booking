@@ -107,16 +107,14 @@ export function noteAriaFragment(note: string | null | undefined): string | null
  * closes the naming dialog when the seat is lost mid-typing, so both phrasings
  * can never drift apart.
  *
- * This is also the primary *touch* affordance for the holder name: a phone
- * cannot hover, but tapping an occupied seat is the gesture a phone user already
- * makes, and it now answers "whose is it?" instead of just "not yours".
+ * The tap handler only reaches this for BLOCKED seats now: an occupied seat
+ * opens the release dialog instead, which names the holder — and the note —
+ * itself. The occupied phrasings below still serve the dialog-closing effect,
+ * where a seat can be lost to another session mid-typing.
  *
  * The **note is deliberately not here**, and a vitest case pins that: this
  * sentence answers *why you cannot have this seat*, and the note is information
- * about someone else's booking rather than about the refusal. It also fires on
- * the first tap now (D3), which is precisely the moment it has to stay one short
- * sentence. Nobody is deprived — the press-to-peek bubble carries the note on
- * that same first tap, and the accessible name carries it for a screen reader.
+ * about someone else's booking rather than about the refusal.
  */
 export function seatUnavailableMessage(locale: Locale, seat: SeatDTO): string {
   const vars = { row: String(seat.row), seat: String(seat.number) };

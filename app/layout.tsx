@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
+import { cookies } from 'next/headers';
 import Link from 'next/link';
 
+import LogoutButton from '@/components/LogoutButton';
+import { AUTH_COOKIE } from '@/lib/auth';
 import { DEFAULT_LOCALE, t } from '@/lib/i18n';
 import Providers from './providers';
 import './globals.css';
@@ -32,9 +35,12 @@ export const viewport: Viewport = {
   themeColor: '#ffffff',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Presence check only — the middleware is the real gate. A stale cookie
+  // shows a logout button that logs out; nothing leaks.
+  const signedIn = (await cookies()).get(AUTH_COOKIE) !== undefined;
   // `light` on <html> pins the white theme regardless of the OS setting. The dark
   // tokens in globals.css are kept intact, so dropping this class (or swapping it
   // for `dark`) is all a future theme toggle needs.
@@ -60,6 +66,7 @@ export default function RootLayout({
                 <span className="ml-auto text-xs font-medium tracking-wide text-muted-foreground uppercase">
                   {t(DEFAULT_LOCALE, 'brand.tagline')}
                 </span>
+                {signedIn ? <LogoutButton locale={DEFAULT_LOCALE} /> : null}
               </div>
             </header>
 

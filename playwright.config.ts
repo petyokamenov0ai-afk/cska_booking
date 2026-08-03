@@ -5,6 +5,9 @@ const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000';
 export default defineConfig({
   testDir: './e2e',
   testMatch: /.*\.spec\.ts/,
+  // Logs in as the seeded staff user and saves the `admin` cookie; every
+  // context below starts from that storage state.
+  globalSetup: './e2e/global-setup.ts',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
@@ -25,6 +28,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     locale: 'bg-BG',
     timezoneId: 'Europe/Sofia',
+    storageState: 'e2e/.auth/state.json',
   },
   projects: [
     {

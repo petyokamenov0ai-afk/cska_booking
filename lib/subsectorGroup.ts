@@ -1,23 +1,24 @@
 /**
  * Grouped-corner merge — one seat map out of two or three subsectors.
  *
- * The overview map draws the Б corners as single wedges, but the seats behind
- * them live in independently-numbered blocks whose coordinates are each
- * normalised to their OWN local space (`data/stadium.json` records no
- * local→overview transform, so the true relative placement is unrecoverable).
- * What CAN be built honestly is an unrolled corner: rotate every member
- * upright — so its seats face the pitch the way a straight stand's do — and
- * lay the members side by side in block order. Rows read continuously, one
- * pitch band spans the whole thing, and every member renders at the SAME
- * scale, which three separately-letterboxed maps could not do.
+ * The two Б corners are drawn as continuous fans on the plan (page 1 of
+ * SEATS_CSKA.pdf), but are bookable as independently numbered zones — Б6/Б6-2
+ * and Б10-2/Б11/Б11-2 — each of which stage 4 of the pipeline emitted in its
+ * OWN local frame, losing the corner's layout. The lost placement was measured
+ * back off the drawing by `scripts/pipeline/06_group_transforms.py`, which
+ * registers every member's seat cloud onto the plan; the result lives in
+ * `data/stadium-groups.json` as a uniform scale + translation per member (the
+ * local frames share the drawing's orientation, so no rotation exists to
+ * recover). Applying those transforms here reassembles the corner exactly as
+ * printed: continuous rows bending around the bend, one canvas, one scale.
  *
- * Pure geometry, no I/O: `lib/availability.ts` calls this with the per-member
- * query results. Seat ids pass through untouched, so booking and polling do
- * not know the merge exists. Each seat gains `block` — its real subsector —
- * because `row`/`number` pairs repeat across members and the UI needs to say
- * which "ред 5, място 3" a booking is for.
+ * Seat ids pass through untouched, so booking and polling do not know the
+ * merge exists. Each seat gains `block` — its real subsector — because
+ * `row`/`number` pairs repeat across members and the UI needs to say which
+ * "ред 5, място 3" a booking is for.
  */
 
+import { getSubsectorGroupTransforms } from '@/lib/stadium';
 import type { SeatDTO, SubsectorMeta } from '@/lib/types';
 
 export interface SubsectorSeatsSlice {
@@ -25,32 +26,13 @@ export interface SubsectorSeatsSlice {
   seats: SeatDTO[];
 }
 
-/** Circular mean of the seat glyph angles, in degrees. Circular because А mixes
- *  -179° and +179°, which average to ±180°, not 0°. */
-function circularMeanDeg(seats: readonly SeatDTO[]): number {
-  let sx = 0;
-  let sy = 0;
-  for (const seat of seats) {
-    const rad = (seat.angle * Math.PI) / 180;
-    sx += Math.cos(rad);
-    sy += Math.sin(rad);
-  }
-  return (Math.atan2(sy, sx) * 180) / Math.PI;
-}
-
-/** Into (-180, 180], so a rotated glyph angle stays in the range the data uses. */
-function normalizeDeg(angle: number): number {
-  let a = angle % 360;
-  if (a <= -180) a += 360;
-  if (a > 180) a -= 360;
-  return a;
-}
+/** Same margin stage 4 leaves around a subsector-local seat cloud. */
+const LOCAL_PAD = 18;
 
 /**
  * Merge the members of one overview group into a single subsector-shaped
- * result. `members` must be in block order (the order `data/stadium.json`
- * lists them, which is the order they sit around the corner); `blockCode` is
- * the group's key — also the lead member's own code.
+ * result. `blockCode` is the group's key — also the lead member's own code,
+ * whose local frame is the canvas everything else is placed into.
  */
 export function mergeSubsectorGroup(
   blockCode: string,
@@ -58,50 +40,47 @@ export function mergeSubsectorGroup(
 ): SubsectorSeatsSlice {
   if (members.length === 1) return members[0];
 
-  // Rotate each member upright: after subtracting the member's mean glyph
-  // angle, its seats face the way a `pitchSide: 'bottom'` stand's do, and the
-  // merged map is simply a wide straight-ish stand with the pitch below.
-  const rotated = members.map(({ subsector, seats }) => {
-    const theta = circularMeanDeg(seats);
-    const rad = (-theta * Math.PI) / 180;
-    const cos = Math.cos(rad);
-    const sin = Math.sin(rad);
-    let minX = Number.POSITIVE_INFINITY;
-    let minY = Number.POSITIVE_INFINITY;
-    let maxX = Number.NEGATIVE_INFINITY;
-    let maxY = Number.NEGATIVE_INFINITY;
-    const placed = seats.map((seat) => {
-      const x = seat.x * cos - seat.y * sin;
-      const y = seat.x * sin + seat.y * cos;
+  const transforms = getSubsectorGroupTransforms(blockCode);
+
+  const seats: SeatDTO[] = [];
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const member of members) {
+    const tf = transforms?.[member.subsector.code];
+    if (tf === undefined && member.subsector.code !== blockCode) {
+      // Identity still renders every seat (stacked on the lead), so the page
+      // stays usable — but loudly, because the layout is wrong without it.
+      console.warn(
+        `[subsectorGroup] no transform for ${member.subsector.code} in group ${blockCode}; ` +
+          'run scripts/pipeline/06_group_transforms.py',
+      );
+    }
+    const scale = tf?.scale ?? 1;
+    const dx = tf?.dx ?? 0;
+    const dy = tf?.dy ?? 0;
+    for (const seat of member.seats) {
+      // No angle change: the frames share one orientation, so the glyphs
+      // already point the way the drawing points them.
+      const x = seat.x * scale + dx;
+      const y = seat.y * scale + dy;
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
       if (y < minY) minY = y;
       if (y > maxY) maxY = y;
-      return { ...seat, x, y, angle: normalizeDeg(seat.angle - theta), block: subsector.code };
-    });
-    return { subsector, seats: placed, minX, minY, maxX, maxY };
-  });
-
-  // Side by side, BACK rows on one line: the top row number is the one every
-  // member shares (row 23 runs the whole corner), so aligning the top edges is
-  // the alignment that reads continuous. The fronts genuinely differ — Б10-2's
-  // sparse row-1 arc reaches far forward — and get to hang lower.
-  const height = Math.max(...rotated.map((m) => m.maxY - m.minY));
-  const totalWidth = rotated.reduce((sum, m) => sum + (m.maxX - m.minX), 0);
-  // Wide enough for the per-row labels that live in the seams between members.
-  const gap = totalWidth * 0.04;
-
-  const seats: SeatDTO[] = [];
-  let cursor = 0;
-  for (const member of rotated) {
-    const dx = cursor - member.minX;
-    const dy = -member.minY;
-    for (const seat of member.seats) {
-      seats.push({ ...seat, x: seat.x + dx, y: seat.y + dy });
+      seats.push({ ...seat, x, y, block: member.subsector.code });
     }
-    cursor += member.maxX - member.minX + gap;
   }
-  const width = cursor - gap;
+
+  // Members placed left/above the lead land at negative coordinates; shift
+  // the whole corner back into a padded 0-based box, stage 4's convention.
+  for (const seat of seats) {
+    seat.x = seat.x - minX + LOCAL_PAD;
+    seat.y = seat.y - minY + LOCAL_PAD;
+  }
+  const width = maxX - minX + 2 * LOCAL_PAD;
+  const height = maxY - minY + 2 * LOCAL_PAD;
 
   const lead =
     members.find((member) => member.subsector.code === blockCode) ?? members[0];
@@ -114,7 +93,7 @@ export function mergeSubsectorGroup(
     height,
     rowCount: members.reduce((sum, member) => sum + member.subsector.rowCount, 0),
     seatCount: seats.length,
-    pitchSide: 'bottom',
+    pitchSide: lead.subsector.pitchSide,
   };
 
   return { subsector, seats };

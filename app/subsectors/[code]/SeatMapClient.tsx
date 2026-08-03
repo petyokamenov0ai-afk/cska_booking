@@ -16,8 +16,9 @@ import SeatReleaseDialog from './SeatReleaseDialog';
  * Click-to-book. There is no basket, no hold countdown and no contact form:
  *
  *   * clicking a free seat asks who it is for, then books it under that name;
- *   * clicking your own booking shows who it is for, with an explicit button
- *     to release it — viewing and cancelling are no longer the same tap.
+ *   * clicking ANY occupied seat — yours or not; this is an admin tool — shows
+ *     who it is for, with an explicit button to cancel the booking. Viewing
+ *     and cancelling are never the same tap.
  *
  * The seat list is polled, so two people looking at the same subsector converge
  * within a poll. Optimism is deliberately limited: a click marks *that one seat*
@@ -163,18 +164,18 @@ export default function SeatMapClient({
   const onSeatToggle = useCallback(
     (seat: SeatDTO) => {
       if (pendingRef.current.has(seat.id)) return; // already in flight
-      // `mine` is tested FIRST because your own seat is RESERVED, not FREE — an
-      // order-swapped version of this falls straight through into the dialog and
-      // asks you to name a seat you are trying to release.
-      if (seat.mine) {
-        // Nothing is released yet: the tap opens the view/confirm dialog, and
-        // only its destructive button mutates. On a phone this tap used to BE
-        // the release, which made "who is sitting here?" a destructive gesture.
+      // ANY occupied seat opens the view/cancel dialog — not just `mine`. This
+      // is an administrator's tool: whoever is at the keyboard must be able to
+      // cancel any booking, and the server's DELETE is unauthenticated by
+      // design (lib/booking.ts). Nothing is released yet — only the dialog's
+      // destructive button mutates, so the tap is safe to be a "who is sitting
+      // here?" gesture too.
+      if (seat.mine || seat.status === 'RESERVED' || seat.status === 'HELD') {
         confirmedReleaseId.current = null;
         setReleaseSeatId(seat.id);
         return;
       }
-      if (seat.status !== 'FREE') return; // someone else's — SeatMap already toasted
+      if (seat.status !== 'FREE') return; // BLOCKED — SeatMap already toasted
       // Disarm the confirm latch: it guards one dialog, and this is a new one.
       confirmedSeatId.current = null;
       setPromptSeatId(seat.id); // nothing is booked yet
@@ -255,25 +256,24 @@ export default function SeatMapClient({
   }, [promptSeatId, seats, locale]);
 
   /**
-   * The release dialog gets the same treatment: if the seat stops being ours
-   * while it is open (the reservation expired, or another tab released it),
-   * the dialog closes rather than offering to release a seat we no longer
-   * hold. Freed silently — "it is not yours any more" needs no toast when the
-   * outcome is exactly what the open dialog was offering; but if someone ELSE
-   * now holds it, that is worth a sentence.
+   * The release dialog gets the same treatment: if the booking disappears
+   * while it is open (expired, or released from another tab), the dialog
+   * closes rather than offering to cancel a booking that is already gone.
+   * Silently — the outcome is exactly what the open dialog was offering. If
+   * the seat changed hands between two polls instead, the dialog stays up and
+   * simply shows the new holder: `releaseSeat` is re-derived from the live
+   * seat list on every render.
    */
   useEffect(() => {
     if (releaseSeatId === null) return;
     const live = seats.find((s) => s.id === releaseSeatId);
-    if (live !== undefined && live.mine) return;
+    if (live !== undefined && (live.status === 'RESERVED' || live.status === 'HELD')) return;
     setReleaseSeatId(null);
-    if (live === undefined || live.status === 'FREE') return;
-    pushToast({ variant: 'info', message: seatUnavailableMessage(locale, live) });
-  }, [releaseSeatId, seats, locale]);
+  }, [releaseSeatId, seats]);
 
   /**
-   * Tapping an occupied seat is the primary *touch* route to the holder's name:
-   * a phone cannot hover, but this is the gesture a phone user already makes.
+   * Only BLOCKED seats land here now — an occupied seat opens the release
+   * dialog instead, which carries the holder's name and note itself.
    */
   const onSeatUnavailable = useCallback(
     (seat: SeatDTO) => {

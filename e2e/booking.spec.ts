@@ -15,7 +15,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
 /** Cyrillic codes travel percent-encoded; keep the raw form for assertions. */
-const SECTOR = 'А';
 const SUBSECTOR = 'А1';
 
 /** The seats this file books, released in `afterEach` whatever the outcome. */
@@ -33,16 +32,8 @@ test.afterEach(async ({ page }) => {
 
 async function openSubsector(page: Page): Promise<void> {
   await page.goto('/');
-  // Level 1 -> 2: focus a stand. The URL carries it, so the back button works.
-  //
-  // Anchored on the full accessible name. The old `new RegExp('А')` + `.first()`
-  // resolved to a *subsector* shape ("Подсектор А1, 546 от 555 свободни") and
-  // only worked because clicking a subsector in an unfocused stand focuses that
-  // stand — an accident, and one that made every hydration failure surface here
-  // as a confusing `toHaveURL` timeout.
-  await page.getByRole('button', { name: `Сектор ${SECTOR} / A` }).click();
-  await expect(page).toHaveURL(new RegExp(`sector=${encodeURIComponent(SECTOR)}`));
-  // Level 2 -> 3.
+  // One level: the bowl fits the screen and every block is directly clickable,
+  // so there is no sector-zoom step and no `?sector=` URL state any more.
   await page.getByRole('button', { name: new RegExp(`^Подсектор ${SUBSECTOR},`) }).click();
   await expect(page).toHaveURL(new RegExp(encodeURIComponent(SUBSECTOR)));
   // Assert we landed, so a navigation failure reads as a navigation failure
@@ -138,8 +129,10 @@ test.describe('stadium', () => {
       timeout: 15_000,
     });
 
-    // A second, independent session must see it as someone else's.
-    const other = await browser.newContext();
+    // A second, independent session must see it as someone else's. Same staff
+    // login (storage state), fresh `sid` — the booking identity is the cookie
+    // that matters here.
+    const other = await browser.newContext({ storageState: 'e2e/.auth/state.json' });
     const otherPage = await other.newPage();
     try {
       await openSubsector(otherPage);
@@ -148,7 +141,9 @@ test.describe('stadium', () => {
       await expect(mirrored).toHaveAttribute('data-seat-state', 'RESERVED', {
         timeout: 20_000,
       });
-      await expect(mirrored).toHaveAttribute('data-seat-selectable', 'false');
+      // …and still actionable: an administrator at ANY browser can open the
+      // release dialog on it and cancel the booking.
+      await expect(mirrored).toHaveAttribute('data-seat-selectable', 'true');
       // Names are PUBLIC to everyone who can see the map — this is an
       // administrator-run tool on a trusted network, and the decision is
       // deliberate enough to deserve a test rather than a comment.
@@ -158,8 +153,12 @@ test.describe('stadium', () => {
       await other.close();
     }
 
-    // Leave the stadium as we found it (belt and braces — `afterEach` also does).
+    // Leave the stadium as we found it (belt and braces — `afterEach` also
+    // does). Releasing goes through the confirm dialog now.
     await page.locator(`[data-seat-id="${seatId}"]`).click();
+    const release = page.getByTestId('seat-release-dialog');
+    await expect(release).toBeVisible();
+    await release.getByTestId('seat-release-confirm').click();
     await expect(page.locator(`[data-seat-id="${seatId}"][data-seat-state="FREE"]`)).toBeVisible({
       timeout: 15_000,
     });

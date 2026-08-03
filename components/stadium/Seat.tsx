@@ -45,9 +45,14 @@ export function seatVisualState(
   return 'FREE';
 }
 
-/** Can the user still act on this seat? */
+/**
+ * Can the user still act on this seat? Everything but an administrator-killed
+ * seat: this is an admin tool, so an occupied seat (RESERVED/HELD, whoever's
+ * session booked it) is actionable too — activating it opens the view/cancel
+ * dialog, and the server's DELETE is unauthenticated by design (lib/booking.ts).
+ */
 export function isSeatSelectable(state: SeatVisualState): boolean {
-  return state === 'FREE' || state === 'SELECTED' || state === 'MINE';
+  return state !== 'BLOCKED';
 }
 
 const FILL_CLASS: Record<SeatVisualState, string> = {

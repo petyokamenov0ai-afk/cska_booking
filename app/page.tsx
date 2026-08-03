@@ -2,9 +2,9 @@
  * Home = the stadium.
  *
  * There are no match days: the administrator creates and deletes seats when they
- * are needed, so there is nothing to pick before choosing a sector. This page is
- * levels 1–2 of the drill-down (whole bowl, then one stand); clicking a subsector
- * goes to /subsectors/[code].
+ * are needed, so there is nothing to pick before choosing a block. The whole
+ * bowl fits the viewport and every block is directly clickable — one click goes
+ * to /subsectors/[code].
  */
 
 import type { Metadata } from 'next';
@@ -19,14 +19,10 @@ import type { SectorGeometry } from '@/lib/types';
 
 import StadiumMapClient from './StadiumMapClient';
 
-// Availability is live, and `?sector=` is read on the client.
+// Availability is live.
 export const dynamic = 'force-dynamic';
 
 const locale = DEFAULT_LOCALE;
-
-interface RouteSearchParams {
-  sector?: string | string[];
-}
 
 export const metadata: Metadata = {
   title: t(locale, 'brand.stadium'),
@@ -45,7 +41,7 @@ function MapSkeleton() {
   );
 }
 
-async function StadiumMapSection({ initialSector }: { initialSector: string | null }) {
+async function StadiumMapSection() {
   let eventId: string;
   let availability;
   try {
@@ -67,27 +63,18 @@ async function StadiumMapSection({ initialSector }: { initialSector: string | nu
       overview={getStadiumOverview()}
       sectors={overviewSectors()}
       availability={availability}
-      initialSector={initialSector}
       locale={locale}
     />
   );
 }
 
-export default async function StadiumPage({
-  searchParams,
-}: {
-  searchParams: Promise<RouteSearchParams>;
-}) {
-  const query = await searchParams;
-  const raw = Array.isArray(query.sector) ? query.sector[0] : query.sector;
-  const initialSector = raw && raw.length > 0 ? raw : null;
-
-  // `flex-1 min-h-0` all the way down, like the seat page: the bowl — and the
-  // zoomed stand with its subsector list — fits the viewport with no scrolling.
+export default async function StadiumPage() {
+  // `flex-1 min-h-0` all the way down, like the seat page: the bowl fits the
+  // viewport with no scrolling.
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Suspense fallback={<MapSkeleton />}>
-        <StadiumMapSection initialSector={initialSector} />
+        <StadiumMapSection />
       </Suspense>
     </div>
   );

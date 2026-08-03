@@ -1,10 +1,10 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useMemo, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { useCallback, useTransition } from 'react';
 
-import SectorZoom from '@/components/stadium/SectorZoom';
+import OverviewMap from '@/components/stadium/OverviewMap';
 import { cn } from '@/lib/format';
 import { t, type Locale } from '@/lib/i18n';
 import { apiFetch } from '@/lib/useSeats';
@@ -16,13 +16,15 @@ import type {
 } from '@/lib/types';
 
 /**
- * Levels 1–2 of the drill-down, on the home page. `SectorZoom` owns the SVG and
- * the zoom animation; this component owns three things it cannot:
+ * The whole stadium, one level deep.
  *
- *   1. the focused sector ⇄ `?sector=<cyrillic>` binding, so a zoomed stand is
- *      shareable and the browser back button steps back out of it;
- *   2. polling the availability endpoint that colours the map;
- *   3. navigation to level 3, with the Cyrillic code percent-encoded.
+ * The bowl fits the viewport, so the old sector-zoom step (and the subsector
+ * card list that came with it) is gone: every block on the map is directly
+ * clickable and goes straight to its seat map. This component owns the two
+ * things the presentational map cannot:
+ *
+ *   1. polling the availability endpoint that colours the blocks;
+ *   2. navigation to the seats, with the Cyrillic code percent-encoded.
  */
 export interface StadiumMapClientProps {
   /**
@@ -35,7 +37,6 @@ export interface StadiumMapClientProps {
   /** Overview geometry with the per-seat payload stripped by the page. */
   sectors: SectorGeometry[];
   availability: SubsectorAvailabilityDTO[];
-  initialSector: string | null;
   locale: Locale;
 }
 
@@ -47,20 +48,10 @@ export default function StadiumMapClient({
   overview,
   sectors,
   availability,
-  initialSector,
   locale,
 }: StadiumMapClientProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [isNavigating, startTransition] = useTransition();
-
-  // The URL is the single source of truth for the focused sector.
-  const sectorParam = searchParams.get('sector') ?? initialSector;
-  const sector = useMemo(
-    () => (sectorParam ? (sectors.find((entry) => entry.code === sectorParam) ?? null) : null),
-    [sectorParam, sectors],
-  );
 
   const { data } = useQuery<AvailabilityResponse>({
     queryKey: ['availability', eventId],
@@ -79,20 +70,6 @@ export default function StadiumMapClient({
     staleTime: 10_000,
   });
 
-  const setSector = useCallback(
-    (code: string | null) => {
-      const next = new URLSearchParams(searchParams.toString());
-      // `URLSearchParams` percent-encodes the Cyrillic code for us.
-      if (code) next.set('sector', code);
-      else next.delete('sector');
-      const query = next.toString();
-      startTransition(() => {
-        router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
-      });
-    },
-    [pathname, router, searchParams],
-  );
-
   const openSubsector = useCallback(
     (code: string) => {
       startTransition(() => {
@@ -103,23 +80,20 @@ export default function StadiumMapClient({
   );
 
   return (
-    // No heading or breadcrumb of its own: `SectorZoom` already renders the
-    // trail, the hint and a "back to overview" control inside the map frame, so
-    // anything here is the same thing said twice. The section carries the name
-    // the heading used to, so it is still announced as the stadium map.
     <section
       aria-busy={isNavigating || undefined}
       aria-label={t(locale, 'map.overviewTitle')}
-      className={cn('flex min-h-0 flex-1 flex-col gap-4', isNavigating && 'opacity-90')}
+      className={cn('flex min-h-0 flex-1 flex-col', isNavigating && 'opacity-90')}
     >
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-surface">
-        <SectorZoom
+      <div className="relative min-h-0 w-full flex-1 overflow-hidden rounded-xl border border-border bg-surface">
+        <OverviewMap
           overview={overview}
           sectors={sectors}
           availability={data.subsectors}
-          sector={sector?.code ?? null}
-          onSectorChange={setSector}
+          // One click, one destination: no focus step, every block activates.
+          alwaysSelectSubsector
           onSelectSubsector={openSubsector}
+          detailLevel="all"
           locale={locale}
         />
       </div>

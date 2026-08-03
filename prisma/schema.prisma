@@ -153,3 +153,12 @@ enum ReservationStatus {
   CANCELLED
   EXPIRED
 }
+
+/// Staff login. One row per person allowed into the app; the middleware gates
+/// every route behind it. Passwords are bcrypt hashes — see lib/auth.ts.
+model AdminUser {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}

@@ -26,8 +26,8 @@
  * explains both scales.
  *
  * Purely presentational and fully controlled: it renders whatever `viewBox` it
- * is handed, which is how `SectorZoom` animates the bowl → stand transition
- * without a route change.
+ * is handed (the default is the whole bowl, which is how the home page uses
+ * it — one static view, every block directly clickable).
  *
  * The path-geometry helpers (`pathBBox`, `unionBBox`, `sectorBBox`), the stand
  * palette and the availability scale live here too, so the map, the zoom
@@ -493,10 +493,7 @@ export interface OverviewMapProps {
   sectors: readonly SectorGeometry[];
   /** From `GET /api/events/:id/availability`. Absent → neutral "stand" fill. */
   availability?: readonly SubsectorAvailabilityDTO[];
-  /**
-   * `viewBox` to render. Defaults to `overview.viewBox`; `SectorZoom` passes an
-   * animated value here.
-   */
+  /** `viewBox` to render. Defaults to `overview.viewBox` — the whole bowl. */
   viewBox?: string;
   /** Cyrillic sector code being zoomed into; others are dimmed. */
   focusedSector?: string | null;

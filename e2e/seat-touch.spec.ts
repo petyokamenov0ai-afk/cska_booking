@@ -8,8 +8,9 @@
  * Playwright project, no config change and no new dependency.
  *
  * The map has no zoom any more — the whole subsector is always in view — so a
- * tap IS the interaction: on an occupied seat it must say whose it is (toast +
- * peek bubble), and on a free seat it must open the naming dialog directly.
+ * tap IS the interaction: on an occupied seat it must open the release dialog
+ * (which says whose it is, and can cancel ANY booking — this is an admin
+ * tool), and on a free seat it must open the naming dialog directly.
  */
 
 import { devices, expect, test, type APIRequestContext } from '@playwright/test';
@@ -26,7 +27,12 @@ let intruder: APIRequestContext;
 let seatId: string;
 
 test.beforeAll(async ({ playwright, baseURL }) => {
-  intruder = await playwright.request.newContext({ baseURL });
+  // Staff-authenticated (storage state) but with its own `sid`, so its booking
+  // reads as someone else's to the page under test.
+  intruder = await playwright.request.newContext({
+    baseURL,
+    storageState: 'e2e/.auth/state.json',
+  });
 });
 
 // `afterAll`, not an in-test `finally`: a test timeout tears the fixtures down
@@ -62,26 +68,21 @@ test.describe('touch', () => {
     const seat = page.locator(`[data-seat-id="${seatId}"]`);
     await expect(seat).toHaveAttribute('data-seat-state', 'RESERVED', { timeout: 20_000 });
 
-    // ONE tap. Not two.
-    //
-    // `{ force: true }`: an occupied seat is `aria-disabled="true"`, and
-    // Playwright's actionability check resolves through it — a plain `tap()`
-    // waits for the seat to become "enabled", for ever. The point of this test is
-    // that *the app* answers the tap, not that the harness can deliver one; see
-    // the same note in e2e/README.md.
-    await seat.tap({ force: true });
+    // ONE tap. Not two. No `force`: an occupied seat is actionable now — an
+    // administrator can cancel any booking — so Playwright's actionability
+    // check passes on its own.
+    await seat.tap();
 
-    const toast = page.getByTestId('toast');
-    await expect(toast).toContainText(new RegExp(`е заето от ${HOLDER}\\.$`));
-    // The refusal stays one short sentence — the note is not in it. Now that it
-    // fires on the first tap, that restraint matters more, not less.
-    await expect(toast).not.toContainText('пътеката');
+    // The release dialog answers the tap: whose seat it is, note included.
+    const dialog = page.getByTestId('seat-release-dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText(`За: ${HOLDER}`);
+    await expect(dialog).toContainText(NOTE);
 
-    // …and the note is not lost to the touch user: the press-to-peek bubble
-    // carries it, on that same first tap.
-    const bubble = page.getByTestId('seat-tooltip');
-    await expect(bubble).toContainText(`За: ${HOLDER}`);
-    await expect(bubble).toContainText(NOTE);
+    // Dismissing cancels nothing — only the destructive button releases.
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(seat).toHaveAttribute('data-seat-state', 'RESERVED');
   });
 
   test('one tap on a free seat opens the naming dialog — no zoom step between', async ({

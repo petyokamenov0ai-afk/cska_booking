@@ -1,9 +1,11 @@
 /**
- * "Your booking" — the confirm step between tapping your own seat and releasing it.
+ * The confirm step between tapping an occupied seat and cancelling its booking.
  *
+ * Opens for ANY occupied seat, not just this session's — this is an admin
+ * tool, and the server's DELETE is unauthenticated by design (lib/booking.ts).
  * Releasing used to be a bare click on the seat, which on a phone made "who is
  * sitting here?" and "cancel this reservation" the same gesture. This dialog
- * splits them: tapping your seat shows who it is booked for, and only the
+ * splits them: tapping a seat shows who it is booked for, and only the
  * explicit destructive button actually releases. Closing it changes nothing.
  *
  * Built on the same native `<dialog>` + `showModal()` machinery as
@@ -25,7 +27,7 @@ import { DEFAULT_LOCALE, t, type Locale } from '@/lib/i18n';
 import type { SeatDTO } from '@/lib/types';
 
 export interface SeatReleaseDialogProps {
-  /** The MINE seat being viewed, or `null` when the dialog is closed. */
+  /** The occupied seat being viewed, or `null` when the dialog is closed. */
   seat: SeatDTO | null;
   onCancel: () => void;
   /** The caller releases and has already closed. */
@@ -157,7 +159,9 @@ export default function SeatReleaseDialog({
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
             <h2 id={titleId} className="text-base font-semibold">
-              {t(locale, 'book.releaseTitle')}
+              {/* "Твоя резервация" only when it actually is; anyone can cancel
+                  any booking, but the title must not claim someone else's. */}
+              {t(locale, view?.mine ? 'book.releaseTitle' : 'book.releaseTitleOther')}
             </h2>
             <p id={descId} className="mt-1 text-sm text-muted-foreground tabular">
               {/* Same block prefix as `SeatNameDialog`: on merged corners the

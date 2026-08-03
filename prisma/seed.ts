@@ -32,6 +32,7 @@ import { resolve } from 'node:path';
 
 import { PrismaClient } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 import type { SeatGeometry, StadiumFile } from '../lib/types';
 
@@ -512,6 +513,28 @@ async function reconcileSeats(
   return { created: toCreate.length, updated: updates.length, deactivated };
 }
 
+/**
+ * The staff login (lib/auth.ts, middleware.ts). Upserted on every seed — so a
+ * deploy re-asserts the credentials — and overridable per environment:
+ *
+ *   ADMIN_USERNAME / ADMIN_PASSWORD
+ *
+ * The defaults keep a fresh deployment reachable; set the env vars on the
+ * platform to rotate them without a code change. Only the bcrypt hash is
+ * stored.
+ */
+async function seedAdminUser(): Promise<void> {
+  const username = process.env.ADMIN_USERNAME ?? 'meto';
+  const password = process.env.ADMIN_PASSWORD ?? 'R3brenie_';
+  const passwordHash = await bcrypt.hash(password, 10);
+  await prisma.adminUser.upsert({
+    where: { username },
+    create: { username, passwordHash },
+    update: { passwordHash },
+  });
+  console.log(`admin user "${username}" upserted`);
+}
+
 async function seedEvents(): Promise<void> {
   for (const ev of stadiumEvents()) {
     const data = {
@@ -591,6 +614,7 @@ async function main(): Promise<void> {
 
   const results = await seedGeometry(plan, cli.refreshGeometry);
   await seedEvents();
+  await seedAdminUser();
 
   printTable(results);
 
